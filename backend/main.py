@@ -12,3 +12,17 @@ def read_bidder(bidder_id: str):
     if bidder is None:
         raise HTTPException(status_code=404, detail="Bidder not found")
     return bidder
+
+@app.get("/tender/{tender_id}/criteria")
+def read_tender_criteria(tender_id: str):
+    criteria = data_loader.get_criteria_by_tender(tender_id)
+    if criteria is None:
+        raise HTTPException(status_code=404, detail="Tender not found")
+    return criteria
+
+@app.get("/compliance/{bidder_id}/{tender_id}")
+def read_compliance(bidder_id: str, tender_id: str):
+    result = data_loader.check_compliance(bidder_id, tender_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder or Tender not found")
+    return result
