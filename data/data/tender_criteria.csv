@@ -1,0 +1,5 @@
+tender_id,tender_title,category_allowed,min_turnover_cr,min_local_content_percent,msme_only,startup_relaxation
+TND001,Supply of Industrial Safety Equipment,General;Medium;OEM,2,50,False,False
+TND002,MSME Reserved - Office Stationery Supply,General;Medium,0,50,True,True
+TND003,Refinery Spare Parts - OEM Only,OEM,10,60,False,False
+TND004,IT Hardware Procurement,General;Medium;OEM,5,40,False,True
