@@ -26,3 +26,10 @@ def read_compliance(bidder_id: str, tender_id: str):
     if result is None:
         raise HTTPException(status_code=404, detail="Bidder or Tender not found")
     return result
+
+@app.get("/verify/{bidder_id}")
+def read_bidder_credentials(bidder_id: str):
+    result = data_loader.verify_bidder_credentials(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
