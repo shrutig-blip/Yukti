@@ -7,17 +7,16 @@ DATA_DIR = os.path.join(BASE_DIR, "..","data", "data")
 bidders_df = pd.read_csv(os.path.join(DATA_DIR, "bidders.csv"))
 tender_criteria_df = pd.read_csv(os.path.join(DATA_DIR, "tender_criteria.csv"))
 tender_bids_df = pd.read_csv(os.path.join(DATA_DIR, "tender_bids.csv"))
-
+gst_df = pd.read_csv(os.path.join(DATA_DIR, "gst_portal.csv"))
+pan_df = pd.read_csv(os.path.join(DATA_DIR, "pan_portal.csv"))
+udyam_df = pd.read_csv(os.path.join(DATA_DIR, "udyam_portal.csv"))
+blacklist_df = pd.read_csv(os.path.join(DATA_DIR, "blacklist_registry.csv"))
 
 def get_bidder_by_id(bidder_id: str):
     row = bidders_df[bidders_df["bidder_id"] == bidder_id]
     if row.empty:
         return None
     return row.iloc[0].to_dict()
-
-if __name__ == "__main__":
-    print(bidders_df.head())
-    print(get_bidder_by_id("BID00001")) 
 
 def get_criteria_by_tender(tender_id: str):
     rows = tender_criteria_df[tender_criteria_df["tender_id"] == tender_id]
@@ -92,3 +91,88 @@ def check_compliance(bidder_id: str, tender_id: str):
         "details": results
     }
 print(bidders_df[(bidders_df["is_startup"] == True) & (bidders_df["annual_turnover_cr"] < 5)][["bidder_id", "annual_turnover_cr", "is_startup"]].head())
+
+def verify_bidder_credentials(bidder_id: str):
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+
+    checks = []
+
+    # --- GST check ---
+    gst_row = gst_df[gst_df["bidder_id"] == bidder_id]
+    if gst_row.empty:
+        checks.append({"check": "gst", "passed": False, "detail": "No GST record found"})
+    else:
+        g = gst_row.iloc[0]
+        name_match = g["registered_name"].strip().lower() == bidder["company_name"].strip().lower()
+        passed = (g["status"] == "Active") and (g["filing_status"] == "Up to date") and name_match
+        checks.append({
+            "check": "gst",
+            "passed": bool(passed),
+            "status": g["status"],
+            "filing_status": g["filing_status"],
+            "name_match": bool(name_match)
+        })
+
+    # --- PAN check ---
+    pan_row = pan_df[pan_df["bidder_id"] == bidder_id]
+    if pan_row.empty:
+        checks.append({"check": "pan", "passed": False, "detail": "No PAN record found"})
+    else:
+        p = pan_row.iloc[0]
+        name_match = p["name_on_pan"].strip().lower() == bidder["company_name"].strip().lower()
+        passed = (p["it_compliance_status"] == "Compliant") and name_match
+        checks.append({
+            "check": "pan",
+            "passed": bool(passed),
+            "it_compliance_status": p["it_compliance_status"],
+            "name_match": bool(name_match)
+        })
+
+    # --- Udyam check ---
+    udyam_row = udyam_df[udyam_df["bidder_id"] == bidder_id]
+    if udyam_row.empty:
+        checks.append({"check": "udyam", "passed": False, "detail": "No Udyam record found"})
+    else:
+        u = udyam_row.iloc[0]
+        passed = u["status"] == "Active"
+        checks.append({
+            "check": "udyam",
+            "passed": bool(passed),
+            "status": u["status"]
+        })
+
+    # --- Blacklist check ---
+    bl_row = blacklist_df[blacklist_df["bidder_id"] == bidder_id]
+    if bl_row.empty:
+        checks.append({"check": "blacklist", "passed": True, "status": "Clear"})
+    else:
+        b = bl_row.iloc[0]
+        passed = b["status"] != "Blacklisted"
+        checks.append({
+            "check": "blacklist",
+            "passed": bool(passed),
+            "status": b["status"],
+            "reason": b.get("reason", None) if not passed else None
+        })
+
+    overall_eligible = all(c["passed"] for c in checks)
+
+    return {
+        "bidder_id": bidder_id,
+        "overall_eligible": overall_eligible,
+        "checks": checks
+    }
+
+if __name__ == "__main__":
+    gst_df = pd.read_csv(os.path.join(DATA_DIR, "gst_portal.csv"))
+    pan_df = pd.read_csv(os.path.join(DATA_DIR, "pan_portal.csv"))
+    udyam_df = pd.read_csv(os.path.join(DATA_DIR, "udyam_portal.csv"))
+    blacklist_df = pd.read_csv(os.path.join(DATA_DIR, "blacklist_registry.csv"))
+    
+    print("GST status values:", gst_df["status"].unique())
+    print("GST filing_status values:", gst_df["filing_status"].unique())
+    print("PAN it_compliance_status values:", pan_df["it_compliance_status"].unique())
+    print("Udyam status values:", udyam_df["status"].unique())
+    print("Blacklist status values:", blacklist_df["status"].unique())
