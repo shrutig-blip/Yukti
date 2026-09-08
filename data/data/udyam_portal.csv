@@ -1,0 +1,151 @@
+bidder_id,udyam_number,registered_name,registration_date,category,status
+BID00001,UDYAM-UT-29-7536478,Universal Enterprises Ltd,2021-02-13,OEM,Active
+BID00002,UDYAM-WE-11-9261705,Bharat Manufacturing Co LLP,2024-12-08,Medium,Active
+BID00003,UDYAM-KA-86-4479145,Sai Suppliers LLP,2018-10-20,General,Active
+BID00004,UDYAM-KA-41-6730429,Precision Constructions LLP,2018-09-29,Medium,Active
+BID00005,UDYAM-MA-15-2564252,Universal Exports LLP,2019-10-18,General,Active
+BID00006,UDYAM-DE-44-1871535,Vintage Steel Works Ltd,2022-11-16,Medium,Expired
+BID00007,UDYAM-PU-40-4017344,Metro Manufacturing Co Private Limited,2020-09-13,Micro,Active
+BID00008,UDYAM-MA-94-3374755,National Exports Private Limited,2021-06-30,General,Active
+BID00009,UDYAM-DE-09-0527022,Metro Steel Works Pvt Ltd,2018-10-18,Medium,Active
+BID00010,UDYAM-WE-87-1651178,Bharat Electronics Private Limited,2022-07-08,Micro,Active
+BID00011,UDYAM-TE-07-9069561,Modern Manufacturing Co Ltd,2019-01-18,Micro,Active
+BID00012,UDYAM-HA-90-9324246,Elite Electronics Private Limited,2023-06-17,General,Expired
+BID00013,UDYAM-GU-32-9712651,Metro Infra Solutions Pvt Ltd,2018-06-12,OEM,Active
+BID00014,UDYAM-KA-59-9445466,Krishna Manufacturing Co,2018-10-28,Micro,Active
+BID00015,UDYAM-KA-71-5022742,Apex Enterprises Private Limited,2019-03-01,General,Active
+BID00016,UDYAM-UT-12-7106423,Universal Technologies LLP,2018-06-30,Medium,Active
+BID00017,UDYAM-MA-46-3524500,Bharat Exports Pvt Ltd,2020-10-19,General,Active
+BID00018,UDYAM-TE-86-4163556,Reliable Technologies Private Limited,2019-10-15,Medium,Active
+BID00019,UDYAM-TA-09-4682941,Elite Suppliers Private Limited,2023-09-18,Medium,Active
+BID00020,UDYAM-KA-15-6462507,United Electricals Private Limited,2020-02-18,OEM,Active
+BID00021,UDYAM-MA-54-6361003,Prime Textiles,2019-12-14,General,Active
+BID00022,UDYAM-TA-95-2846950,Vishal Fabricators Private Limited,2018-12-14,General,Active
+BID00023,UDYAM-MA-99-1788239,Vintage Enterprises & Co,2020-06-15,Startup,Active
+BID00024,UDYAM-TE-32-4652513,Universal Textiles & Co,2023-06-08,OEM,Active
+BID00025,UDYAM-WE-08-3470106,Prime Textiles Ltd,2022-05-15,Startup,Active
+BID00026,UDYAM-MA-29-4579095,Continental Constructions & Co,2023-06-13,Startup,Active
+BID00027,UDYAM-OD-36-7072685,Sterling Traders Pvt Ltd,2018-12-02,Medium,Active
+BID00028,UDYAM-KA-61-1919137,Apex Suppliers,2020-06-11,OEM,Active
+BID00029,UDYAM-UT-89-4074337,United Infra Solutions LLP,2021-05-20,Micro,Active
+BID00030,UDYAM-TE-82-7713147,Continental Engineering Works LLP,2019-09-19,General,Active
+BID00031,UDYAM-KA-97-7796515,Vintage Exports & Co,2024-11-04,OEM,Active
+BID00032,UDYAM-HA-63-9314312,Modern Logistics LLP,2023-05-05,Small,Active
+BID00033,UDYAM-GU-90-7612583,Vishal Suppliers & Co,2021-06-09,Medium,Expired
+BID00034,UDYAM-GU-38-2118619,Metro Fabricators Pvt Ltd,2023-07-04,General,Expired
+BID00035,UDYAM-MA-78-3786402,Elite Enterprises Ltd,2022-04-08,OEM,Active
+BID00036,UDYAM-OD-21-0044892,Vintage Engineering Works Ltd,2023-01-20,Startup,Active
+BID00037,UDYAM-UT-83-2499628,Vishal Steel Works Pvt Ltd,2019-08-06,Medium,Expired
+BID00038,UDYAM-KA-87-4521645,National Engineering Works & Co,2018-06-14,OEM,Active
+BID00039,UDYAM-WE-64-4835493,Global Agro Industries,2022-06-29,General,Active
+BID00040,UDYAM-MA-80-8363327,Krishna Textiles Pvt Ltd,2022-12-16,General,Active
+BID00041,UDYAM-UT-29-1903562,Vishal Steel Works,2019-04-27,Startup,Active
+BID00042,UDYAM-GU-09-4634663,Metro Electricals & Co,2021-10-24,Startup,Active
+BID00043,UDYAM-UT-31-9593173,Vishal Electronics Private Limited,2020-08-14,Startup,Active
+BID00044,UDYAM-MA-13-8823995,Sterling Constructions,2018-03-04,Startup,Active
+BID00045,UDYAM-PU-98-8186401,National Electronics LLP,2018-05-28,OEM,Active
+BID00046,UDYAM-KE-46-6288790,National Agro Industries Pvt Ltd,2019-08-20,Startup,Active
+BID00047,UDYAM-WE-57-5797630,Continental Technologies Private Limited,2021-05-10,OEM,Active
+BID00048,UDYAM-GU-88-0822826,Sterling Electronics Pvt Ltd,2023-07-28,OEM,Active
+BID00049,UDYAM-RA-06-5183034,Apex Suppliers,2018-05-17,Startup,Active
+BID00050,UDYAM-MA-38-5682699,Reliable Infra Solutions Private Limited,2023-04-03,Micro,Active
+BID00051,UDYAM-MA-48-1817746,Sterling Exports LLP,2020-08-15,General,Active
+BID00052,UDYAM-PU-15-1630612,Vintage Suppliers,2024-01-11,Small,Active
+BID00053,UDYAM-PU-46-1015862,Elite Agro Industries LLP,2021-02-04,Startup,Expired
+BID00054,UDYAM-BI-77-0047573,Prime Suppliers Private Limited,2019-08-16,Medium,Active
+BID00055,UDYAM-UT-09-7990082,Shree Technologies Pvt Ltd,2022-01-22,Startup,Active
+BID00056,UDYAM-GU-88-1811299,Vintage Engineering Works,2022-12-22,Startup,Expired
+BID00057,UDYAM-TA-30-6942640,Vishal Steel Works Ltd,2023-02-01,Medium,Active
+BID00058,UDYAM-MA-08-9839252,Krishna Logistics Private Limited,2024-04-19,OEM,Active
+BID00059,UDYAM-PU-48-1927456,Reliable Engineering Works LLP,2024-06-09,Medium,Active
+BID00060,UDYAM-KE-95-0514341,Krishna Traders Private Limited,2023-12-13,Micro,Active
+BID00061,UDYAM-DE-45-7212754,Bharat Infra Solutions Ltd,2021-03-06,Micro,Active
+BID00062,UDYAM-DE-01-8344742,Vishal Engineering Works Private Limited,2022-10-30,General,Active
+BID00063,UDYAM-MA-59-6070881,National Textiles Ltd,2022-11-24,Micro,Active
+BID00064,UDYAM-GU-45-2477825,National Constructions LLP,2019-02-26,Small,Expired
+BID00065,UDYAM-GU-57-5080484,Continental Steel Works,2024-08-19,Medium,Active
+BID00066,UDYAM-MA-20-1038069,Sterling Steel Works Ltd,2019-02-28,Startup,Active
+BID00067,UDYAM-OD-87-0878548,Global Engineering Works Private Limited,2021-10-02,General,Expired
+BID00068,UDYAM-TA-17-8831415,Bharat Logistics LLP,2022-10-01,Micro,Active
+BID00069,UDYAM-MA-05-5649969,Modern Textiles & Co,2019-06-21,OEM,Active
+BID00070,UDYAM-HA-40-7868777,Global Steel Works Pvt Ltd,2022-02-15,Small,Active
+BID00071,UDYAM-OD-71-1721171,Vishal Constructions Ltd,2023-10-15,General,Active
+BID00072,UDYAM-RA-11-6289991,Metro Technologies & Co,2018-04-26,Small,Active
+BID00073,UDYAM-HA-33-3618087,Bharat Technologies Pvt Ltd,2024-02-26,Small,Active
+BID00074,UDYAM-KA-81-8646570,Vishal Suppliers LLP,2020-09-17,OEM,Active
+BID00075,UDYAM-DE-06-6490792,Reliable Infra Solutions,2020-11-04,Medium,Active
+BID00076,UDYAM-TE-18-1058652,United Textiles Private Limited,2023-02-18,General,Expired
+BID00077,UDYAM-KA-44-3134273,Modern Fabricators LLP,2023-07-31,Startup,Active
+BID00078,UDYAM-UT-55-2795836,Reliable Enterprises & Co,2022-12-24,General,Active
+BID00079,UDYAM-RA-19-7351321,Vintage Agro Industries LLP,2019-06-02,Micro,Active
+BID00080,UDYAM-WE-50-9423305,Apex Steel Works Pvt Ltd,2020-12-08,Micro,Active
+BID00081,UDYAM-WE-41-5828830,Vintage Fabricators,2018-09-23,General,Active
+BID00082,UDYAM-PU-71-2177200,Global Logistics Ltd,2018-12-20,OEM,Active
+BID00083,UDYAM-MA-08-2083078,National Steel Works & Co,2019-09-19,OEM,Active
+BID00084,UDYAM-TA-20-2872270,Vishal Enterprises LLP,2024-10-14,General,Active
+BID00085,UDYAM-MA-83-5068299,National Engineering Works,2020-09-30,Startup,Active
+BID00086,UDYAM-TA-17-6216633,Sai Infra Solutions & Co,2024-04-19,OEM,Expired
+BID00087,UDYAM-GU-65-7671058,Global Textiles Ltd,2020-05-31,Small,Active
+BID00088,UDYAM-MA-72-3265775,Elite Fabricators Ltd,2024-03-16,Medium,Active
+BID00089,UDYAM-BI-59-2498810,Prime Exports LLP,2023-10-13,OEM,Active
+BID00090,UDYAM-KA-61-4454862,Vishal Electronics Pvt Ltd,2024-06-27,General,Active
+BID00091,UDYAM-MA-27-6884991,Metro Constructions Private Limited,2024-11-09,OEM,Active
+BID00092,UDYAM-RA-87-4435262,Bharat Pharma Private Limited,2023-06-07,OEM,Expired
+BID00093,UDYAM-GU-92-1325894,Universal Electricals LLP,2022-12-17,Medium,Active
+BID00094,UDYAM-GU-07-1681043,Universal Electricals Ltd,2021-09-14,Startup,Active
+BID00095,UDYAM-WE-12-9632360,Universal Infra Solutions & Co,2024-01-01,Small,Active
+BID00096,UDYAM-MA-02-5006191,Global Agro Industries Private Limited,2024-10-04,OEM,Active
+BID00097,UDYAM-GU-79-6803000,United Textiles Private Limited,2023-10-12,Startup,Active
+BID00098,UDYAM-WE-34-6032284,Bharat Electronics LLP,2020-08-25,General,Expired
+BID00099,UDYAM-MA-97-9018051,Vishal Logistics Ltd,2020-06-13,General,Active
+BID00100,UDYAM-RA-22-5504901,National Pharma & Co,2022-12-15,OEM,Expired
+BID00101,UDYAM-GU-09-7920041,Precision Fabricators,2021-03-21,Micro,Active
+BID00102,UDYAM-RA-16-2994291,Reliable Logistics & Co,2022-05-29,OEM,Active
+BID00103,UDYAM-UT-98-1893219,Shree Fabricators & Co,2022-09-14,Micro,Active
+BID00104,UDYAM-MA-28-0946974,Om Manufacturing Co Pvt Ltd,2023-08-26,Small,Active
+BID00105,UDYAM-TE-23-7167237,Prime Textiles Private Limited,2023-07-24,OEM,Active
+BID00106,UDYAM-TA-33-3411425,Elite Suppliers Private Limited,2018-11-20,Medium,Active
+BID00107,UDYAM-TA-27-5586215,Modern Engineering Works LLP,2018-03-04,Medium,Expired
+BID00108,UDYAM-UT-61-5372623,Universal Textiles LLP,2022-02-27,Small,Active
+BID00109,UDYAM-KA-71-5663389,Bharat Traders LLP,2023-06-25,Medium,Active
+BID00110,UDYAM-RA-86-0813937,Apex Infra Solutions Private Limited,2022-08-17,Micro,Active
+BID00111,UDYAM-DE-87-7223820,Elite Electronics Pvt Ltd,2019-03-15,Small,Active
+BID00112,UDYAM-MA-84-0531578,Metro Electricals LLP,2022-07-19,Micro,Active
+BID00113,UDYAM-KA-28-9509061,Shree Infra Solutions Pvt Ltd,2021-01-15,Startup,Expired
+BID00114,UDYAM-MA-89-1315799,Bharat Constructions Pvt Ltd,2021-11-17,OEM,Active
+BID00115,UDYAM-MA-92-1233238,Precision Electronics Private Limited,2021-01-02,Micro,Active
+BID00116,UDYAM-MA-77-5443038,Apex Electricals Pvt Ltd,2018-02-20,Startup,Active
+BID00117,UDYAM-UT-26-7681644,Bharat Enterprises Private Limited,2019-07-09,Micro,Active
+BID00118,UDYAM-MA-62-5271121,Vintage Constructions LLP,2022-06-20,Small,Active
+BID00119,UDYAM-RA-71-0451578,Continental Suppliers LLP,2023-03-06,General,Active
+BID00120,UDYAM-GU-62-9768434,National Agro Industries,2023-12-29,Startup,Active
+BID00121,UDYAM-KA-87-6704474,Apex Exports Ltd,2022-10-30,Medium,Expired
+BID00122,UDYAM-GU-27-8742857,Metro Technologies LLP,2021-11-27,Startup,Active
+BID00123,UDYAM-RA-23-9259519,National Fabricators Pvt Ltd,2021-09-17,Small,Active
+BID00124,UDYAM-UT-97-1049646,Global Infra Solutions,2019-02-21,OEM,Active
+BID00125,UDYAM-TA-80-2894532,United Electricals,2021-05-03,General,Active
+BID00126,UDYAM-MA-69-2906398,United Suppliers LLP,2019-11-15,OEM,Active
+BID00127,UDYAM-HA-63-2806048,Apex Traders & Co,2024-05-04,Micro,Active
+BID00128,UDYAM-RA-55-1718263,Universal Pharma Pvt Ltd,2020-10-10,General,Active
+BID00129,UDYAM-TE-77-9039037,Continental Logistics,2021-08-18,Small,Active
+BID00130,UDYAM-UT-42-4153280,Metro Industries Private Limited,2022-05-28,General,Active
+BID00131,UDYAM-DE-42-9763594,Sterling Steel Works Pvt Ltd,2019-01-17,Micro,Active
+BID00132,UDYAM-GU-63-5766994,Apex Enterprises Ltd,2018-07-18,General,Active
+BID00133,UDYAM-OD-97-3928282,Vishal Infra Solutions LLP,2019-01-09,Startup,Active
+BID00134,UDYAM-UT-12-1718443,Continental Suppliers Ltd,2021-07-07,Micro,Active
+BID00135,UDYAM-UT-88-7421970,Bharat Technologies Pvt Ltd,2018-12-22,Small,Active
+BID00136,UDYAM-RA-04-5060837,Sterling Logistics & Co,2023-10-22,Small,Active
+BID00137,UDYAM-RA-50-9535841,Sai Suppliers & Co,2022-02-05,Startup,Active
+BID00138,UDYAM-RA-54-7106414,National Traders Ltd,2022-07-06,General,Active
+BID00139,UDYAM-KA-86-2946850,National Fabricators,2018-02-21,Micro,Active
+BID00140,UDYAM-WE-43-7202872,Apex Pharma Ltd,2023-11-16,Medium,Active
+BID00141,UDYAM-TA-71-7035850,United Industries Private Limited,2021-08-11,Small,Active
+BID00142,UDYAM-TE-95-4069885,Sterling Enterprises & Co,2022-02-17,Startup,Active
+BID00143,UDYAM-OD-85-6312845,Universal Suppliers Private Limited,2021-06-13,General,Active
+BID00144,UDYAM-KE-08-7297802,Metro Agro Industries,2019-06-20,General,Expired
+BID00145,UDYAM-MA-16-1517011,Continental Industries Private Limited,2021-05-31,Small,Active
+BID00146,UDYAM-DE-58-9327357,Prime Technologies Pvt Ltd,2024-03-03,General,Active
+BID00147,UDYAM-TE-06-7734212,National Electricals Pvt Ltd,2019-11-20,Micro,Active
+BID00148,UDYAM-GU-32-4951044,Elite Traders & Co,2022-08-15,Startup,Active
+BID00149,UDYAM-MA-70-8131573,Bharat Agro Industries Private Limited,2024-05-05,Medium,Active
+BID00150,UDYAM-UT-32-4045873,Vintage Suppliers Pvt Ltd,2023-12-26,Medium,Active
