@@ -165,6 +165,76 @@ def verify_bidder_credentials(bidder_id: str):
         "checks": checks
     }
 
+from datetime import datetime
+
+def verify_certificate_against_records(bidder_id: str, extracted: dict) -> dict:
+    """
+    Cross-checks fields extracted from an uploaded certificate PDF against:
+    1. The matching mock govt portal record (does the cert agree with the portal?)
+    2. The certificate's own internal validity (e.g. expiry date already passed)
+    """
+    doc_type = extracted.get("document_type")
+    checks = []
+
+    if doc_type == "gst":
+        row = gst_df[gst_df["bidder_id"] == bidder_id]
+        if row.empty:
+            checks.append({"check": "portal_match", "passed": False, "detail": "No GST portal record for this bidder"})
+        else:
+            g = row.iloc[0]
+            gstin_match = extracted.get("gstin") == g["gstin"]
+            name_match = (extracted.get("legal_name") or "").strip().lower() == g["registered_name"].strip().lower()
+            checks.append({
+                "check": "portal_match",
+                "passed": bool(gstin_match and name_match),
+                "gstin_match": bool(gstin_match),
+                "name_match": bool(name_match),
+                "certificate_name": extracted.get("legal_name"),
+                "portal_name": g["registered_name"],
+            })
+
+    elif doc_type == "udyam":
+        row = udyam_df[udyam_df["bidder_id"] == bidder_id]
+        if row.empty:
+            checks.append({"check": "portal_match", "passed": False, "detail": "No Udyam portal record for this bidder"})
+        else:
+            u = row.iloc[0]
+            number_match = extracted.get("udyam_number") == u["udyam_number"]
+            name_match = (extracted.get("enterprise_name") or "").strip().lower() == u["registered_name"].strip().lower()
+            checks.append({
+                "check": "portal_match",
+                "passed": bool(number_match and name_match),
+                "number_match": bool(number_match),
+                "name_match": bool(name_match),
+            })
+
+        # The certificate's OWN claimed expiry — independent of what the portal says.
+        # This is the interesting case: a cert can claim a future valid-upto date
+        # that has since passed, catching a stale/expired document even if
+        # someone forgot to check the date manually.
+        valid_upto_str = extracted.get("valid_upto")
+        if valid_upto_str:
+            try:
+                valid_upto_date = datetime.strptime(valid_upto_str, "%Y-%m-%d")
+                expired = valid_upto_date < datetime.now()
+                checks.append({
+                    "check": "certificate_expiry",
+                    "passed": not expired,
+                    "valid_upto": valid_upto_str,
+                })
+            except ValueError:
+                checks.append({"check": "certificate_expiry", "passed": False, "detail": "Could not parse valid_upto date"})
+    if doc_type == "unknown" and not checks:
+        checks.append({
+            "check": "document_type",
+            "passed": False,
+            "detail": "Unrecognized certificate type — expected a GST or Udyam registration certificate"
+        })
+    return {
+        "document_type": doc_type,
+        "checks": checks,
+        "all_passed": all(c["passed"] for c in checks) if checks else False,
+    }
 if __name__ == "__main__":
     gst_df = pd.read_csv(os.path.join(DATA_DIR, "gst_portal.csv"))
     pan_df = pd.read_csv(os.path.join(DATA_DIR, "pan_portal.csv"))
@@ -176,3 +246,4 @@ if __name__ == "__main__":
     print("PAN it_compliance_status values:", pan_df["it_compliance_status"].unique())
     print("Udyam status values:", udyam_df["status"].unique())
     print("Blacklist status values:", blacklist_df["status"].unique())
+

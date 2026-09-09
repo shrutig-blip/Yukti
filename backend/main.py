@@ -1,7 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
+import shutil, tempfile, os
 import data_loader
+from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
+from data_loader import verify_certificate_against_records
 
 app = FastAPI()
+
 @app.get("/")
 def home():
     return {"message": "GeM Compliance API is running"}
@@ -33,3 +37,25 @@ def read_bidder_credentials(bidder_id: str):
     if result is None:
         raise HTTPException(status_code=404, detail="Bidder not found")
     return result
+
+@app.post("/verify/{bidder_id}/certificate")
+async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+       raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        raw_text = extract_text_from_pdf(tmp_path)
+        extracted = extract_certificate_fields(raw_text)
+    finally:
+        os.remove(tmp_path)
+
+    verification = verify_certificate_against_records(bidder_id, extracted)
+
+    return {
+        "bidder_id": bidder_id,
+        "extracted": extracted,
+        "verification": verification,
+    }
