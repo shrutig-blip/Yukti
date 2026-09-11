@@ -1,4 +1,7 @@
 # Yukti
+
+### Backend url: https://yukti-xzni.onrender.com/
+### Frontend url: https://yukti-beryl.vercel.app/
 ## Tech Stack
 
 - **Backend:** Python + FastAPI
