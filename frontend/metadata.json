@@ -1,0 +1,7 @@
+{
+  "name": "Yukti",
+  "description": "Yukti — Statutory Tender Compliance & Bidder Verification System for Chennai Petroleum Corporation Limited (CPCL)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
