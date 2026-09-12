@@ -16,6 +16,16 @@ import {
 } from 'lucide-react';
 import { Tender, Bidder } from '../../types';
 
+declare module 'react/jsx-runtime';
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
+}
+
 interface DashboardViewProps {
   tenders: Tender[];
   bidders: Bidder[];
@@ -31,6 +41,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectTender,
   onNavigateToTab,
 }) => {
+  // ---- Derived metrics from real props (replace all hardcoded numbers below) ----
+  const activeTendersCount = tenders.length;
+  const tendersInEvaluation = tenders.filter(
+    (t: Tender) => t.overallStatus === 'Pending Verification' || t.overallStatus === 'Review Required'
+  ).length;
+
+  const totalBidders = bidders.length;
+  const totalDocsIngested = bidders.reduce((sum: number, b: Bidder) => sum + b.documentsCount, 0);
+
+  const bidersNeedingAction = bidders.filter(
+    (b: Bidder) => b.status === 'Pending Review' || b.status === 'Clarification Requested'
+  );
+  const highPriorityActionCount = bidersNeedingAction.filter(
+    (b: Bidder) => b.riskLevel === 'HIGH' || b.riskLevel === 'CRITICAL'
+  ).length;
+
+  const criticalAlertsTotal = bidders.reduce((sum: number, b: Bidder) => sum + b.criticalAlertsCount, 0);
+
+  const compliantCount = bidders.filter((b: Bidder) => b.status === 'Qualified').length;
+  const reviewRequiredCount = bidders.filter(
+    (b: Bidder) => b.status === 'Clarification Requested' || b.status === 'Pending Review'
+  ).length;
+  const nonCompliantCount = bidders.filter((b: Bidder) => b.status === 'Disqualified').length;
+  const pendingCount = bidders.filter((b: Bidder) => b.status === 'Under Verification').length;
+
+  const pct = (n: number) => (totalBidders > 0 ? ((n / totalBidders) * 100).toFixed(1) : '0.0');
+
+  const lowRiskCount = bidders.filter((b: Bidder) => b.riskLevel === 'LOW').length;
+  const mediumRiskCount = bidders.filter((b: Bidder) => b.riskLevel === 'MEDIUM').length;
+  const highCriticalRiskCount = bidders.filter(
+    (b: Bidder) => b.riskLevel === 'HIGH' || b.riskLevel === 'CRITICAL'
+  ).length;
+  const riskPct = (n: number) => (totalBidders > 0 ? Math.round((n / totalBidders) * 100) : 0);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Top Banner / Hero Context */}
@@ -86,9 +129,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
             <div className="flex items-baseline space-x-3">
-              <span className="text-3xl font-bold text-[#102A43]">12</span>
+              <span className="text-3xl font-bold text-[#102A43]">{activeTendersCount}</span>
               <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                3 in Evaluation
+                {tendersInEvaluation} in Evaluation
               </span>
             </div>
           </div>
@@ -113,14 +156,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
             <div className="flex items-baseline space-x-3">
-              <span className="text-3xl font-bold text-[#102A43]">47</span>
+              <span className="text-3xl font-bold text-[#102A43]">{totalBidders}</span>
               <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                6 In Focus Tender
+                {bidersNeedingAction.length} In Focus Tender
               </span>
             </div>
           </div>
           <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>184 Docs Ingested</span>
+            <span>{totalDocsIngested} Docs Ingested</span>
             <span className="font-semibold text-[#0F766E] group-hover:translate-x-1 transition-transform flex items-center gap-1">
               View <ChevronRight className="w-3.5 h-3.5" />
             </span>
@@ -140,14 +183,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
             <div className="flex items-baseline space-x-3">
-              <span className="text-3xl font-bold text-amber-800">8</span>
+              <span className="text-3xl font-bold text-amber-800">{bidersNeedingAction.length}</span>
               <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                 Requires Review
               </span>
             </div>
           </div>
           <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>2 High-Priority</span>
+            <span>{highPriorityActionCount} High-Priority</span>
             <span className="font-semibold text-amber-800 group-hover:translate-x-1 transition-transform flex items-center gap-1">
               Action <ChevronRight className="w-3.5 h-3.5" />
             </span>
@@ -167,7 +210,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
             <div className="flex items-baseline space-x-3">
-              <span className="text-3xl font-bold text-red-700">3</span>
+              <span className="text-3xl font-bold text-red-700">{criticalAlertsTotal}</span>
               <span className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
                 Turnover / OEM / CVC
               </span>
@@ -192,21 +235,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Compliance Standing
               </h2>
               <p className="text-sm text-slate-500 mt-0.5 font-normal">
-                Qualification status across 47 active procurement evaluations
+                Qualification status across {totalBidders} active procurement evaluations
               </p>
             </div>
             <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded">
-              47 Bidders
+              {totalBidders} Bidders
             </span>
           </div>
 
           {/* Segmented Bar with Clean Spacing */}
           <div className="space-y-2">
             <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-              <div style={{ width: '59.5%' }} className="bg-[#15803D]" title="Compliant (28)" />
-              <div style={{ width: '23.4%' }} className="bg-[#B7791F]" title="Review Required (11)" />
-              <div style={{ width: '10.6%' }} className="bg-[#B91C1C]" title="Non-Compliant (5)" />
-              <div style={{ width: '6.5%' }} className="bg-[#0F766E]" title="Pending (3)" />
+              <div style={{ width: `${pct(compliantCount)}%` }} className="bg-[#15803D]" title={`Compliant (${compliantCount})`} />
+              <div style={{ width: `${pct(reviewRequiredCount)}%` }} className="bg-[#B7791F]" title={`Review Required (${reviewRequiredCount})`} />
+              <div style={{ width: `${pct(nonCompliantCount)}%` }} className="bg-[#B91C1C]" title={`Non-Compliant (${nonCompliantCount})`} />
+              <div style={{ width: `${pct(pendingCount)}%` }} className="bg-[#0F766E]" title={`Pending (${pendingCount})`} />
             </div>
             <div className="flex justify-between text-[11px] text-slate-400 font-medium">
               <span>Verified Compliant (59.5%)</span>
@@ -278,10 +321,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
                   <span>Low Risk (Verified & Clean)</span>
                 </span>
-                <span className="text-slate-900 font-semibold">24 Bidders (51%)</span>
+                <span className="text-slate-900 font-semibold">{lowRiskCount} Bidders ({riskPct(lowRiskCount)}%)</span>
               </div>
               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-600 rounded-full" style={{ width: '51%' }} />
+                <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${riskPct(lowRiskCount)}%` }} />
               </div>
             </div>
 
@@ -292,10 +335,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
                   <span>Medium Risk (Minor Expiry / Syntax Variation)</span>
                 </span>
-                <span className="text-slate-900 font-semibold">14 Bidders (30%)</span>
+                <span className="text-slate-900 font-semibold">{mediumRiskCount} Bidders ({riskPct(mediumRiskCount)}%)</span>
               </div>
               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: '30%' }} />
+                <div className="h-full bg-amber-500 rounded-full" style={{ width: `${riskPct(mediumRiskCount)}%` }} />
               </div>
             </div>
 
@@ -306,10 +349,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full bg-red-600" />
                   <span>High / Critical Risk (Turnover Inflation / OEM Expiry)</span>
                 </span>
-                <span className="text-red-700 font-semibold">9 Bidders (19%)</span>
+                <span className="text-red-700 font-semibold">{highCriticalRiskCount} Bidders ({riskPct(highCriticalRiskCount)}%)</span>
               </div>
               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-red-600 rounded-full" style={{ width: '19%' }} />
+                <div className="h-full bg-red-600 rounded-full" style={{ width: `${riskPct(highCriticalRiskCount)}%` }} />
               </div>
             </div>
           </div>
@@ -340,98 +383,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
             <span className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded">
-              3 Unresolved
+               {bidders.filter((b) => b.criticalAlertsCount > 0).length} Unresolved
             </span>
           </div>
 
           <div className="space-y-3.5">
-            {/* Alert 1: Turnover Mismatch */}
-            <div
-              onClick={() => onSelectBidder('BID-2026-0047')}
-              className="p-4 rounded-lg border border-red-200 bg-red-50/40 hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer group"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-red-800">
-                      Turnover Discrepancy Detected
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-200 text-red-900">
-                      Critical
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-800">
-                    Bidder: <strong className="font-semibold">ABC Engineering Pvt. Ltd.</strong> (BID-2026-0047)
-                  </div>
-                  <div className="text-xs text-slate-600 flex items-center space-x-3 pt-0.5">
-                    <span>Declared: <strong className="text-slate-900">₹18.4 Cr</strong></span>
-                    <span>•</span>
-                    <span>MCA / ITR: <strong className="text-red-700">₹12.7 Cr</strong></span>
-                    <span>•</span>
-                    <span className="text-red-600 font-medium">Variance: +44.6%</span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-red-700 group-hover:translate-x-1 transition-transform flex items-center gap-1 shrink-0 pt-1">
-                  Examine <ChevronRight className="w-4 h-4" />
-                </span>
-              </div>
+            {bidders.filter((b) => b.criticalAlertsCount > 0).length === 0 ? (
+  <p className="text-sm text-slate-500 py-4 text-center">
+    No critical alerts at this time.
+  </p>
+) : (
+  bidders
+    .filter((b) => b.criticalAlertsCount > 0)
+    .slice(0, 3)
+    .map((b) => (
+      <div
+        key={b.id}
+        onClick={() => onSelectBidder(b.id)}
+        className="p-4 rounded-lg border border-red-200 bg-red-50/40 hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer group"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-red-800">
+                {b.criticalAlertsCount} Critical Alert{b.criticalAlertsCount > 1 ? 's' : ''}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-200 text-red-900">
+                {b.riskLevel}
+              </span>
             </div>
-
-            {/* Alert 2: OEM Expiry in 18 days */}
-            <div
-              onClick={() => onSelectBidder('BID-2026-0047')}
-              className="p-4 rounded-lg border border-amber-200 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 transition-all cursor-pointer group"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-amber-900">
-                      OEM Authorization Expires Before Bid Closing
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                      High
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-800">
-                    Bidder: <strong className="font-semibold">ABC Engineering Pvt. Ltd.</strong> / Kirloskar Flow
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    Authorization expires on 28 Sep 2026, falling 2 days short of tender deadline (30 Sep 2026).
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-amber-800 group-hover:translate-x-1 transition-transform flex items-center gap-1 shrink-0 pt-1">
-                  Examine <ChevronRight className="w-4 h-4" />
-                </span>
-              </div>
+            <div className="text-xs text-slate-800">
+              Bidder: <strong className="font-semibold">{b.name}</strong> ({b.id})
             </div>
-
-            {/* Alert 3: Debarment watchlist check */}
-            <div
-              onClick={() => onSelectBidder('BID-2026-0050')}
-              className="p-4 rounded-lg border border-red-200 bg-red-50/40 hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer group"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-red-800">
-                      Historical Debarment Record in GeM Registry
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-200 text-red-900">
-                      High
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-800">
-                    Bidder: <strong className="font-semibold">Nova Industrial Technologies</strong> (BID-2026-0050)
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    Temporary debarment archived in Nov 2024 for delivery delays. Requires officer waiver check.
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-red-700 group-hover:translate-x-1 transition-transform flex items-center gap-1 shrink-0 pt-1">
-                  Examine <ChevronRight className="w-4 h-4" />
-                </span>
-              </div>
+            <div className="text-xs text-slate-600 pt-0.5">
+              {b.discrepanciesCount} discrepancy(ies) found across {b.documentsCount} documents.
             </div>
+          </div>
+          <span className="text-xs font-bold text-red-700 group-hover:translate-x-1 transition-transform flex items-center gap-1 shrink-0 pt-1">
+            Examine <ChevronRight className="w-4 h-4" />
+          </span>
+        </div>
+      </div>
+    ))
+)}
           </div>
         </div>
 
