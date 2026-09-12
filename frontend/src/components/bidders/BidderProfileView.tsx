@@ -27,12 +27,16 @@ import {
 import {
   Bidder,
   Tender,
+  RiskFactor,
+  ExpiryItem,
+  AuditRecord,
   DocumentRecord,
   VerificationSource,
   ContradictionItem,
   TenderRequirement,
   OfficerDecision,
   SeverityLevel,
+  RedFlagHistoryItem,
 } from '../../types';
 import { DocumentInspectModal } from './DocumentInspectModal';
 import { ClarificationGeneratorModal } from './ClarificationGeneratorModal';
@@ -104,11 +108,31 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
     authorizationCompliance: 0,
   });
   const [isComplianceLoading, setIsComplianceLoading] = useState(true);
-  const riskFactors = riskService.getRiskFactors(bidder.id);
-  const expiries = riskService.getExpiries(bidder.id);
-  const timeline = riskService.getTimeline(bidder.id);
-  const auditRecords = auditService.getRecords(bidder.id);
+  // after
+const [riskFactors, setRiskFactors] = useState<RiskFactor[]>([]);
+const [expiries, setExpiries] = useState<ExpiryItem[]>([]);
+const [timeline, setTimeline] = useState<RedFlagHistoryItem[]>([]);
+const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
 
+useEffect(() => {
+  if (!bidder.id) return;
+  let cancelled = false;
+  Promise.all([
+    riskService.getRiskFactors(bidder.id, tender.id),
+    riskService.getExpiries(bidder.id),
+    riskService.getTimeline(bidder.id),
+    auditService.getRecords(bidder.id),
+  ]).then(([factors, exp, tl, records]) => {
+    if (cancelled) return;
+    setRiskFactors(factors);
+    setExpiries(exp);
+    setTimeline(tl);
+    setAuditRecords(records);
+  });
+  return () => {
+    cancelled = true;
+  };
+}, [bidder.id, tender.id]);
   // sources/contradictions/breakdown all now come from real backend calls
   // (verificationService/complianceService), which are async — re-fetched
   // whenever the focused bidder or tender changes.
@@ -913,6 +937,43 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
       {/* Tab 5: Adaptive Risk & Expiry Radar */}
       {activeTab === 'risk' && (
         <div className="space-y-6">
+          {/* Itemized Risk Factor Breakdown — real per-bidder flags from riskService.getRiskFactors() */}
+<div className="bg-white rounded-md border border-slate-200 shadow-xs p-5 space-y-4">
+  <div className="pb-2 border-b border-slate-100">
+    <h3 className="text-sm font-bold text-[#102A43] uppercase tracking-wider">
+      Active Risk Factors
+    </h3>
+    <p className="text-[11px] text-slate-500">
+      Itemized flags contributing to this bidder's overall risk rating
+    </p>
+  </div>
+
+  {riskFactors.length > 0 ? (
+    <div className="space-y-3">
+      {riskFactors.map((factor) => (
+        <div key={factor.id} className="p-3 bg-slate-50 rounded-md border border-slate-200">
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <span className="font-semibold text-slate-900 text-xs">{factor.name}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {getRiskBadge(factor.severity)}
+              <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
+                {factor.category}
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed">{factor.description}</p>
+          <div className="text-[10px] text-slate-400 font-mono pt-1.5 mt-1.5 border-t border-slate-100">
+            Evidence Ref: {factor.evidenceRef}
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="text-xs text-slate-400 italic py-2">
+      No active risk factors — all statutory, financial, and eligibility checks currently pass.
+    </div>
+  )}
+</div>
           {/* Expiry Radar Section (Section 13) */}
           <div className="bg-white rounded-md border border-slate-200 shadow-xs p-5 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -1131,7 +1192,7 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
             </div>
             <button
               onClick={() => {
-                const csv = auditService.exportAuditLogAsCSV();
+                const csv = auditService.exportAuditLogAsCSV(auditRecords);
                 const blob = new Blob([csv], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

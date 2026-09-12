@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import shutil, tempfile, os
 import data_loader
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
 from data_loader import verify_certificate_against_records
+from typing import Optional
 
 app = FastAPI()
 
@@ -24,6 +26,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 @app.get("/")
 def home():
@@ -80,6 +84,50 @@ def read_bidder_credentials(bidder_id: str):
         raise HTTPException(status_code=404, detail="Bidder not found")
     return result
 
+class AuditEventIn(BaseModel):
+    actor: str
+    role: str
+    action: str
+    source: str
+    result: str
+    evidence_ref: str | None = None
+    comments: str | None = None
+@app.post("/bidder/{bidder_id}/audit-log")
+def write_audit_event(bidder_id: str, event: AuditEventIn):
+    if data_loader.get_bidder_by_id(bidder_id) is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return data_loader.append_audit_event(
+        bidder_id=bidder_id,
+        actor=event.actor,
+        role=event.role,
+        action=event.action,
+        source=event.source,
+        result=event.result,
+        evidence_ref=event.evidence_ref,
+        comments=event.comments,
+    )
+@app.get("/bidder/{bidder_id}/audit-log")
+def read_audit_log(bidder_id: str):
+    result = data_loader.get_audit_log(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
+    
+@app.get("/bidder/{bidder_id}/risk-factors")
+def read_risk_factors(bidder_id: str, tender_id: Optional[str] = None):
+    result = data_loader.get_risk_factors(bidder_id, tender_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
+
+@app.get("/bidder/{bidder_id}/expiries")
+def read_expiries(bidder_id: str):
+    result = data_loader.get_expiries(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
+
+
 @app.get("/audit/recent-activity")
 def get_recent_activity(limit: int = 10):
     return data_loader.get_recent_verification_activity(limit=limit)
@@ -105,3 +153,10 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
         "extracted": extracted,
         "verification": verification,
     }
+
+@app.get("/bidder/{bidder_id}/timeline")
+def read_timeline(bidder_id: str):
+    result = data_loader.get_timeline(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
