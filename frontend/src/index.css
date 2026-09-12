@@ -7,9 +7,14 @@
     background-color: #f8fafc;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* cv02/03/04/11 = Inter's cleaner alternate glyph shapes;
+       tnum = tabular (fixed-width) figures, so columns of numbers
+       (compliance scores, turnover values, dates) line up neatly
+       instead of shifting width digit-to-digit. */
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
+    font-variant-numeric: tabular-nums;
     letter-spacing: -0.011em;
-    line-height: 1.5;
+    line-height: 1.45;
   }
 
   /* Enterprise typography utility defaults */
@@ -20,6 +25,16 @@
   h2, h3, h4 {
     letter-spacing: -0.015em;
   }
+}
+
+/* Small uppercase labels (section kickers, badges, table headers) are used
+   throughout the app via Tailwind's `uppercase` utility, which only sets
+   text-transform — it doesn't add letter-spacing. Real tracking on small
+   caps text is what makes labels like "EVIDENCE / EXPLAINABILITY" read as
+   clean and deliberate instead of cramped. This is the one global rule that
+   does the most visible work here, and it touches zero component files. */
+.uppercase {
+  letter-spacing: 0.06em;
 }
 
 /* Custom subtle scrollbar */
