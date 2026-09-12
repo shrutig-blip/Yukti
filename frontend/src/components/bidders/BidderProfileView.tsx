@@ -84,7 +84,8 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
   const [verificationFeedback, setVerificationFeedback] = useState<string | null>(null);
 
   // Data fetching
-  const documents = documentService.getDocuments(bidder.id);
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [isDocumentsLoading, setIsDocumentsLoading] = useState(true);
   const [sources, setSources] = useState<VerificationSource[]>([]);
   const [contradictions, setContradictions] = useState<ContradictionItem[]>([]);
   const [breakdown, setBreakdown] = useState<{
@@ -132,6 +133,25 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
       cancelled = true;
     };
   }, [bidder.id, tender.id]);
+  useEffect(() => {
+  if (!bidder.id) return;
+  let cancelled = false;
+  setIsDocumentsLoading(true);
+  documentService
+    .getRealDocuments(bidder.id)
+    .then((docs) => {
+      if (!cancelled) setDocuments(docs);
+    })
+    .catch(() => {
+      if (!cancelled) setDocuments([]);
+    })
+    .finally(() => {
+      if (!cancelled) setIsDocumentsLoading(false);
+    });
+  return () => {
+    cancelled = true;
+  };
+}, [bidder.id]);
 
   const handleRunVerification = async () => {
     setIsRunningVerification(true);
@@ -625,6 +645,13 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
               </pre>
             </div>
           )}
+          {!isDocumentsLoading && documents.length === 0 && (
+  <div className="p-3 text-sm text-slate-500">No statutory records found for this bidder.</div>
+)}
+          {isDocumentsLoading && (
+      <div className="p-3 text-sm text-slate-500">Loading statutory records…</div>
+    )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
               <thead>

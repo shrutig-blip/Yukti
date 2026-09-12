@@ -11,7 +11,7 @@ import {
   Building2,
   Scale,
 } from 'lucide-react';
-import { Bidder, Tender, TenderRequirement, ContradictionItem } from '../../types';
+import { Bidder, Tender, TenderRequirement, ContradictionItem, DocumentRecord  } from '../../types';
 import { complianceService } from '../../services/complianceService';
 import { documentService } from '../../services/documentService';
 import { riskService } from '../../services/riskService';
@@ -35,8 +35,7 @@ export const ComplianceReportView: React.FC<ComplianceReportViewProps> = ({
   const [contradictions, setContradictions] = useState<ContradictionItem[]>([]);
   const [isLoadingContradictions, setIsLoadingContradictions] = useState(true);
   const expiries = riskService.getExpiries(bidder.id);
-  const documents = documentService.getDocuments(bidder.id);
-
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   useEffect(() => {
     if (!bidder.id || !tender.id) return;
     let cancelled = false;
@@ -53,7 +52,21 @@ export const ComplianceReportView: React.FC<ComplianceReportViewProps> = ({
       cancelled = true;
     };
   }, [bidder.id, tender.id]);
-
+  useEffect(() => {
+  if (!bidder.id) return;
+  let cancelled = false;
+  documentService
+    .getRealDocuments(bidder.id)
+    .then((docs) => {
+      if (!cancelled) setDocuments(docs);
+    })
+    .catch(() => {
+      if (!cancelled) setDocuments([]);
+    });
+  return () => {
+    cancelled = true;
+  };
+}, [bidder.id]);
   const handlePrint = () => {
     window.print();
   };
