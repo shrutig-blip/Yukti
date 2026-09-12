@@ -70,6 +70,8 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
     | 'decision'
     | 'audit'
   >('overview');
+  const [uploading, setUploading] = useState(false);
+const [uploadResult, setUploadResult] = useState<{ extracted: any; verification: any } | null>(null);
 
   // Modal states
   const [inspectingDoc, setInspectingDoc] = useState<DocumentRecord | null>(null);
@@ -587,16 +589,42 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
               <input
                 type="file"
                 className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    documentService.simulateUpload(bidder.id, e.target.files[0]);
-                    setActiveTab('documents');
-                  }
-                }}
+                onChange={async (e) => {
+  if (e.target.files && e.target.files[0]) {
+    const file = e.target.files[0];
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Only PDF files are accepted');
+      return;
+    }
+    setUploading(true);
+    try {
+      const result = await documentService.uploadCertificateForVerification(bidder.id, file);
+      setUploadResult(result); // naya state — Step 3 mein banayenge
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      setActiveTab('documents');
+    }
+  }
+}}
               />
             </label>
           </div>
-
+          {uploadResult && (
+            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-sm space-y-2">
+              <div className="font-semibold">
+                Document Type: {uploadResult.extracted.document_type}
+              </div>
+              <pre className="text-xs overflow-x-auto">
+                {JSON.stringify(uploadResult.extracted, null, 2)}
+              </pre>
+              <div className="font-semibold">Verification Checks:</div>
+              <pre className="text-xs overflow-x-auto">
+                {JSON.stringify(uploadResult.verification, null, 2)}
+              </pre>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
               <thead>

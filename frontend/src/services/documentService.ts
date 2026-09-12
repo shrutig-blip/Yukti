@@ -1,6 +1,6 @@
 import { mockDocuments } from '../data/mockData';
 import { DocumentRecord } from '../types';
-
+import { apiPostForm } from './apiClient';
 class DocumentService {
   private documents: DocumentRecord[] = [...mockDocuments];
 
@@ -47,6 +47,14 @@ class DocumentService {
     };
     this.documents.unshift(newDoc);
     return newDoc;
+  }
+  public async uploadCertificateForVerification(
+    bidderId: string,
+    file: File
+  ): Promise<{ bidder_id: string; extracted: any; verification: any }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiPostForm(`/verify/${bidderId}/certificate`, formData);
   }
 }
 
