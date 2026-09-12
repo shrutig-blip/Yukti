@@ -11,6 +11,7 @@ import {
   RedFlagHistoryItem,
   AuditRecord,
 } from '../types';
+import { CURRENT_OFFICER } from '../constants/officer';
 
 export const mockTenders: Tender[] = [
   {
@@ -273,6 +274,12 @@ export const mockBidders: Bidder[] = [
     criticalAlertsCount: 1,
     incorporationDate: '14 Oct 2012',
     registeredAddress: 'Plot 42, Bhosari Industrial Area, MIDC, Pune - 411026, Maharashtra',
+    category: 'OEM',
+    declaredTurnoverCr: 18.40,
+    auditedTurnoverCr: 12.72,
+    turnoverMismatch: true,
+    oemAuthorizationExpiry: '2026-09-28',
+    oemAuthorizationStatus: 'EXPIRING_SOON',
   },
   {
     id: 'BID-2026-0048',
@@ -290,6 +297,12 @@ export const mockBidders: Bidder[] = [
     criticalAlertsCount: 2,
     incorporationDate: '22 Jan 2008',
     registeredAddress: 'GIDC Industrial Estate, Makarpura, Vadodara - 390010, Gujarat',
+    category: 'OEM',
+    declaredTurnoverCr: 24.10,
+    auditedTurnoverCr: 24.10,
+    turnoverMismatch: false,
+    oemAuthorizationExpiry: '2027-12-31',
+    oemAuthorizationStatus: 'VALID',
   },
   {
     id: 'BID-2026-0049',
@@ -309,11 +322,17 @@ export const mockBidders: Bidder[] = [
     registeredAddress: 'Barakhamba Road, Connaught Place, New Delhi - 110001',
     officerDecision: {
       decision: 'QUALIFIED',
-      officerName: 'S. Ramanathan',
+      officerName: CURRENT_OFFICER.name,
       officerDesignation: 'Dy. General Manager (Procurement)',
       timestamp: '08 Sep 2026 17:15 IST',
       comments: 'Fully compliant with all technical and statutory stipulations. All 15 documents verified against official portals.',
     },
+    category: 'General',
+    declaredTurnoverCr: 32.50,
+    auditedTurnoverCr: 32.40,
+    turnoverMismatch: false,
+    oemAuthorizationExpiry: null,
+    oemAuthorizationStatus: 'NOT_APPLICABLE',
   },
   {
     id: 'BID-2026-0050',
@@ -331,6 +350,12 @@ export const mockBidders: Bidder[] = [
     criticalAlertsCount: 2,
     incorporationDate: '19 Aug 2017',
     registeredAddress: 'Ambattur Industrial Estate, Chennai - 600058, Tamil Nadu',
+    category: 'OEM',
+    declaredTurnoverCr: 9.80,
+    auditedTurnoverCr: 8.40,
+    turnoverMismatch: true,
+    oemAuthorizationExpiry: '2026-08-15',
+    oemAuthorizationStatus: 'EXPIRED',
   },
   {
     id: 'BID-2026-0051',
@@ -348,6 +373,12 @@ export const mockBidders: Bidder[] = [
     criticalAlertsCount: 0,
     incorporationDate: '11 Nov 2019',
     registeredAddress: 'Peenya Industrial Area, Phase II, Bengaluru - 560058, Karnataka',
+    category: 'Medium',
+    declaredTurnoverCr: 15.20,
+    auditedTurnoverCr: 15.10,
+    turnoverMismatch: false,
+    oemAuthorizationExpiry: null,
+    oemAuthorizationStatus: 'NOT_APPLICABLE',
   },
 ];
 
@@ -1020,7 +1051,7 @@ export const mockAuditRecords: AuditRecord[] = [
   {
     id: 'AUD-8806',
     timestamp: '09 Sep 2026 16:05 IST',
-    actor: 'S. Ramanathan',
+    actor: CURRENT_OFFICER.name,
     role: 'Procurement Officer',
     action: 'Requirement Confirmation & Officer Annotation',
     source: 'Yukti Officer Control Console',
@@ -1032,7 +1063,7 @@ export const mockAuditRecords: AuditRecord[] = [
   {
     id: 'AUD-8807',
     timestamp: '09 Sep 2026 16:22 IST',
-    actor: 'S. Ramanathan',
+    actor: CURRENT_OFFICER.name,
     role: 'Procurement Officer',
     action: 'Clarification Draft Generated',
     source: 'AI Clarification Generator',

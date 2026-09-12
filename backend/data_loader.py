@@ -18,11 +18,34 @@ blacklist_df = pd.read_csv(os.path.join(DATA_DIR, "blacklist_registry.csv"))
 startup_nsic_df = pd.read_csv(os.path.join(DATA_DIR, "startup_nsic_portal.csv"))
 epfo_df = pd.read_csv(os.path.join(DATA_DIR, "epfo_esic_portal.csv"))
 
+# bidders.csv now also carries two audit-relevant columns (added to support
+# the Bidder Comparison view, which previously showed these as hardcoded
+# per-bidder-ID mock values):
+#   audited_turnover_cr        -> statutory-audit-confirmed turnover, for
+#                                  comparison against the self-declared
+#                                  annual_turnover_cr. ~17% of bidders show a
+#                                  real mismatch (weighted towards bidders
+#                                  that already carry a known_issue_tags flag
+#                                  — a discrepancy here isn't independent
+#                                  noise, it correlates with other real
+#                                  compliance issues).
+#   oem_authorization_expiry   -> ISO date. Only populated for category ==
+#                                  "OEM" bidders (OEM authorization is an
+#                                  OEM-category concept); empty/NaN for all
+#                                  other categories, which callers should
+#                                  treat as "not applicable", not "missing".
+
+def _clean_nan(d: dict) -> dict:
+    """pandas reads blank CSV cells as float NaN, which isn't valid JSON.
+    Convert those to None so API responses stay valid JSON and the frontend
+    can just check for null instead of NaN."""
+    return {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in d.items()}
+
 def get_bidder_by_id(bidder_id: str):
     row = bidders_df[bidders_df["bidder_id"] == bidder_id]
     if row.empty:
         return None
-    return row.iloc[0].to_dict()
+    return _clean_nan(row.iloc[0].to_dict())
 
 def get_criteria_by_tender(tender_id: str):
     rows = tender_criteria_df[tender_criteria_df["tender_id"] == tender_id]
@@ -246,7 +269,7 @@ def list_tenders():
 
 
 def list_bidders():
-    return bidders_df.to_dict(orient="records")
+    return [_clean_nan(r) for r in bidders_df.to_dict(orient="records")]
 
 
 def list_bids():

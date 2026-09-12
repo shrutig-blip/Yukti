@@ -13,6 +13,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { Tender, Bidder } from '../../types';
+import { CURRENT_OFFICER } from '../../constants/officer';
 
 interface HeaderProps {
   onSearchSelect?: (type: 'bidder' | 'tender', id: string) => void;
@@ -250,14 +251,14 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Officer Profile Badge */}
           <div className="flex items-center space-x-2 pl-3 border-l border-slate-200">
             <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 text-xs font-bold border border-slate-300">
-              SR
+              {CURRENT_OFFICER.initials}
             </div>
             <div className="hidden sm:block text-left">
               <div className="text-xs font-semibold text-slate-800 leading-tight">
-                S. Ramanathan
+                {CURRENT_OFFICER.name}
               </div>
               <div className="text-[10px] text-slate-500 leading-tight">
-                DGM (Procurement) • CPCL
+                {CURRENT_OFFICER.designation} • {CURRENT_OFFICER.department}
               </div>
             </div>
           </div>

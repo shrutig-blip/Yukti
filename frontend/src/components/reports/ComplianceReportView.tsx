@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Bidder, Tender, TenderRequirement, ContradictionItem, DocumentRecord  } from '../../types';
 import { complianceService } from '../../services/complianceService';
+import { CURRENT_OFFICER } from '../../constants/officer';
 import { documentService } from '../../services/documentService';
 import { riskService } from '../../services/riskService';
 
@@ -153,8 +154,8 @@ export const ComplianceReportView: React.FC<ComplianceReportViewProps> = ({
 
           <div>
             <div className="text-[10px] font-bold uppercase text-slate-500">Officer In-Charge</div>
-            <div className="font-bold text-slate-900">S. Ramanathan</div>
-            <div className="text-[10px] text-slate-500">DGM (Procurement)</div>
+            <div className="font-bold text-slate-900">{CURRENT_OFFICER.name}</div>
+            <div className="text-[10px] text-slate-500">{CURRENT_OFFICER.designation}</div>
           </div>
         </div>
 
@@ -343,10 +344,10 @@ export const ComplianceReportView: React.FC<ComplianceReportViewProps> = ({
           <div className="pt-6 grid grid-cols-2 gap-8 text-xs border-t border-slate-200">
             <div>
               <div className="border-b border-slate-400 w-48 mb-1">
-                <span className="font-serif italic text-slate-600 text-sm">S. Ramanathan</span>
+                <span className="font-serif italic text-slate-600 text-sm">{CURRENT_OFFICER.name}</span>
               </div>
-              <div className="font-bold text-slate-900">S. Ramanathan</div>
-              <div className="text-slate-500 text-[11px]">Dy. General Manager (Procurement)</div>
+              <div className="font-bold text-slate-900">{CURRENT_OFFICER.name}</div>
+              <div className="text-slate-500 text-[11px]">{CURRENT_OFFICER.fullDesignation}</div>
               <div className="text-slate-500 text-[10px]">Mechanical Procurement Division, CPCL</div>
             </div>
 
