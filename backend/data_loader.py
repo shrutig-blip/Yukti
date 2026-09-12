@@ -416,6 +416,8 @@ def verify_certificate_against_records(bidder_id: str, extracted: dict) -> dict:
                 "name_match": bool(name_match),
                 "certificate_name": extracted.get("legal_name"),
                 "portal_name": g["registered_name"],
+                "gstin_ocr_corrected": extracted.get("gstin_ocr_corrected", False),
+                "gstin_raw_ocr": extracted.get("gstin_raw_ocr"),
             })
 
     elif doc_type == "udyam":
@@ -445,17 +447,68 @@ def verify_certificate_against_records(bidder_id: str, extracted: dict) -> dict:
                 })
             except ValueError:
                 checks.append({"check": "certificate_expiry", "passed": False, "detail": "Could not parse valid_upto date"})
+
+    elif doc_type == "pan":
+        row = pan_df[pan_df["bidder_id"] == bidder_id]
+        if row.empty:
+            checks.append({"check": "portal_match", "passed": False, "detail": "No PAN portal record for this bidder"})
+        else:
+            p = row.iloc[0]
+            pan_match = extracted.get("pan_number") == p["pan_number"]
+            name_match = (extracted.get("name") or "").strip().lower() == p["name_on_pan"].strip().lower()
+            checks.append({
+                "check": "portal_match",
+                "passed": bool(pan_match and name_match),
+                "pan_match": bool(pan_match),
+                "name_match": bool(name_match),
+                "certificate_name": extracted.get("name"),
+                "portal_name": p["name_on_pan"],
+            })
+
+    elif doc_type == "epfo":
+        row = epfo_df[epfo_df["bidder_id"] == bidder_id]
+        if row.empty:
+            checks.append({"check": "portal_match", "passed": False, "detail": "No EPFO portal record for this bidder"})
+        else:
+            e = row.iloc[0]
+            if not bool(e["applicable"]):
+                checks.append({
+                    "check": "portal_match",
+                    "passed": False,
+                    "detail": "EPFO/ESIC not applicable for this bidder per portal record — an EPFO certificate should not exist"
+                })
+            else:
+                code_match = extracted.get("establishment_code") == e["establishment_code"]
+                checks.append({
+                    "check": "portal_match",
+                    "passed": bool(code_match),
+                    "establishment_code_match": bool(code_match),
+                    "certificate_code": extracted.get("establishment_code"),
+                    "portal_code": e["establishment_code"],
+                })
     if doc_type == "unknown" and not checks:
         checks.append({
             "check": "document_type",
             "passed": False,
             "detail": "Unrecognized certificate type — expected a GST or Udyam registration certificate"
         })
+    all_passed = all(c["passed"] for c in checks) if checks else False
+
+    # Officer-facing flag: separate from all_passed because a check can pass
+    # but still deserve a human look — e.g. an OCR-corrected GSTIN that
+    # happened to match the portal anyway shouldn't be silently auto-cleared.
+    needs_review = (
+        not all_passed
+        or bool(extracted.get("gstin_ocr_corrected"))
+        or (extracted.get("gstin_checksum_valid") is False)
+    )
+
     return {
         "document_type": doc_type,
         "checks": checks,
-        "all_passed": all(c["passed"] for c in checks) if checks else False,
-    }
+        "all_passed": all_passed,
+        "needs_review": needs_review,
+    }   
 
 def _format_activity_detail(check: dict) -> str:
     """Human-readable reason for why this specific check passed/failed —

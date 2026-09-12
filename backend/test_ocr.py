@@ -1,7 +1,5 @@
-# backend/test_ocr.py
 from pdf_extractor import _try_ocr_page
 
-# teeno sample certificates try karte hain
 samples = [
     r"C:\Users\shivi\Yukti\data\sample_documents\BID00001_gst_certificate.pdf",
     r"C:\Users\shivi\Yukti\data\sample_documents\BID00002_udyam_certificate.pdf",
