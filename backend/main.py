@@ -80,6 +80,10 @@ def read_bidder_credentials(bidder_id: str):
         raise HTTPException(status_code=404, detail="Bidder not found")
     return result
 
+@app.get("/audit/recent-activity")
+def get_recent_activity(limit: int = 10):
+    return data_loader.get_recent_verification_activity(limit=limit)
+
 @app.post("/verify/{bidder_id}/certificate")
 async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
