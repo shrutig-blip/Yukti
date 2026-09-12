@@ -10,6 +10,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Bidder } from '../../types';
+import { CURRENT_OFFICER } from '../../constants/officer';
 
 interface ClarificationGeneratorModalProps {
   bidder: Bidder;
@@ -55,8 +56,8 @@ Yours faithfully,
 
 For Chennai Petroleum Corporation Limited (CPCL),
 
-S. Ramanathan
-Dy. General Manager (Procurement)
+${CURRENT_OFFICER.name}
+${CURRENT_OFFICER.fullDesignation}
 Mechanical Procurement Division, Manali Refinery, Chennai.`;
 
   const [letterBody, setLetterBody] = useState(defaultLetter);

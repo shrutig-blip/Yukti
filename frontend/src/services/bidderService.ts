@@ -47,6 +47,17 @@ import { Bidder, OfficerDecision, SeverityLevel } from '../types';
  * 'Pending Review'; recordOfficerDecision() below still works exactly as it
  * did against the mock — it mutates the in-memory cache client-side only.
  * There is no backend endpoint to persist an officer decision.
+ *
+ * declaredTurnoverCr / auditedTurnoverCr / turnoverMismatch: backend now
+ * carries both annual_turnover_cr (self-declared) and audited_turnover_cr
+ * (statutory-audit-confirmed) per bidder. turnoverMismatch is computed here
+ * (>2% variance = mismatch) — same "derive display flags client-side from
+ * real backend fields" pattern used above for discrepanciesCount.
+ *
+ * oemAuthorizationExpiry / oemAuthorizationStatus: backend only populates
+ * oem_authorization_expiry for category === "OEM" bidders; it's null for
+ * everyone else, which we surface as NOT_APPLICABLE rather than treating
+ * as missing/expired data.
  */
 
 interface RawBidder {
@@ -62,6 +73,24 @@ interface RawBidder {
   local_content_percent: number;
   annual_turnover_cr: number;
   is_startup: boolean;
+  audited_turnover_cr: number;
+  oem_authorization_expiry: string | null;
+}
+
+const TURNOVER_MISMATCH_THRESHOLD = 0.02; // >2% variance counts as a real mismatch
+const OEM_EXPIRY_SOON_DAYS = 30;
+
+function computeOemAuthorizationStatus(
+  category: string,
+  expiryDate: string | null
+): Bidder['oemAuthorizationStatus'] {
+  if (category !== 'OEM' || !expiryDate) return 'NOT_APPLICABLE';
+  const daysRemaining = Math.floor(
+    (new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  );
+  if (daysRemaining < 0) return 'EXPIRED';
+  if (daysRemaining <= OEM_EXPIRY_SOON_DAYS) return 'EXPIRING_SOON';
+  return 'VALID';
 }
 
 interface RawBid {
@@ -143,6 +172,14 @@ class BidderService {
       criticalAlertsCount: isBlacklisted ? 1 : 0,
       incorporationDate: raw.registration_date,
       registeredAddress: raw.state,
+      category: raw.category,
+      declaredTurnoverCr: raw.annual_turnover_cr,
+      auditedTurnoverCr: raw.audited_turnover_cr,
+      turnoverMismatch:
+        Math.abs(raw.audited_turnover_cr - raw.annual_turnover_cr) / raw.annual_turnover_cr >
+        TURNOVER_MISMATCH_THRESHOLD,
+      oemAuthorizationExpiry: raw.oem_authorization_expiry,
+      oemAuthorizationStatus: computeOemAuthorizationStatus(raw.category, raw.oem_authorization_expiry),
     };
   }
 

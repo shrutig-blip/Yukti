@@ -79,10 +79,7 @@ export const ComplianceAnalysisView: React.FC<ComplianceAnalysisViewProps> = ({
     'REQ-14': true,
   });
 
-  // Fetch documents for the active bidder (still mock — no document-vault
-  // backend, see documentService.ts / the earlier session's design notes).
-  const bidderDocs = documentService.getDocuments(activeBidder.id);
-
+  const [bidderDocs, setBidderDocs] = useState<DocumentRecord[]>([]);
   // breakdown comes from complianceService, which now calls the real
   // backend (GET /compliance/{bidder_id}/{tender_id}) and is async —
   // signature changed from the mock (getBreakdown(bidderId) ->
@@ -117,7 +114,21 @@ export const ComplianceAnalysisView: React.FC<ComplianceAnalysisViewProps> = ({
       cancelled = true;
     };
   }, [activeBidder.id, tender.id]);
-
+  useEffect(() => {
+  if (!activeBidder.id) return;
+  let cancelled = false;
+  documentService
+    .getRealDocuments(activeBidder.id)
+    .then((docs) => {
+      if (!cancelled) setBidderDocs(docs);
+    })
+    .catch(() => {
+      if (!cancelled) setBidderDocs([]);
+    });
+  return () => {
+    cancelled = true;
+  };
+}, [activeBidder.id]);
   // Filter requirements
   const filteredRequirements = requirements.filter((req) => {
     const matchesCategory =

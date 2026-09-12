@@ -43,6 +43,7 @@ import { complianceService } from '../../services/complianceService';
 import { riskService } from '../../services/riskService';
 import { auditService } from '../../services/auditService';
 import { verificationService } from '../../services/verificationService';
+import { CURRENT_OFFICER } from '../../constants/officer';
 
 interface BidderProfileViewProps {
   bidder: Bidder;
@@ -70,6 +71,8 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
     | 'decision'
     | 'audit'
   >('overview');
+  const [uploading, setUploading] = useState(false);
+const [uploadResult, setUploadResult] = useState<{ extracted: any; verification: any } | null>(null);
 
   // Modal states
   const [inspectingDoc, setInspectingDoc] = useState<DocumentRecord | null>(null);
@@ -82,7 +85,8 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
   const [verificationFeedback, setVerificationFeedback] = useState<string | null>(null);
 
   // Data fetching
-  const documents = documentService.getDocuments(bidder.id);
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [isDocumentsLoading, setIsDocumentsLoading] = useState(true);
   const [sources, setSources] = useState<VerificationSource[]>([]);
   const [contradictions, setContradictions] = useState<ContradictionItem[]>([]);
   const [breakdown, setBreakdown] = useState<{
@@ -130,6 +134,25 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
       cancelled = true;
     };
   }, [bidder.id, tender.id]);
+  useEffect(() => {
+  if (!bidder.id) return;
+  let cancelled = false;
+  setIsDocumentsLoading(true);
+  documentService
+    .getRealDocuments(bidder.id)
+    .then((docs) => {
+      if (!cancelled) setDocuments(docs);
+    })
+    .catch(() => {
+      if (!cancelled) setDocuments([]);
+    })
+    .finally(() => {
+      if (!cancelled) setIsDocumentsLoading(false);
+    });
+  return () => {
+    cancelled = true;
+  };
+}, [bidder.id]);
 
   const handleRunVerification = async () => {
     setIsRunningVerification(true);
@@ -187,7 +210,7 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
     };
 
     auditService.logEvent({
-      actor: 'S. Ramanathan (DGM Procurement)',
+      actor: `${CURRENT_OFFICER.name} (${CURRENT_OFFICER.designation})`,
       role: 'Procurement Officer',
       action: 'Issued Official Clarification Notice',
       source: 'Clarification Drafting Engine',
@@ -587,15 +610,48 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
               <input
                 type="file"
                 className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    documentService.simulateUpload(bidder.id, e.target.files[0]);
-                    setActiveTab('documents');
-                  }
-                }}
+                onChange={async (e) => {
+  if (e.target.files && e.target.files[0]) {
+    const file = e.target.files[0];
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Only PDF files are accepted');
+      return;
+    }
+    setUploading(true);
+    try {
+      const result = await documentService.uploadCertificateForVerification(bidder.id, file);
+      setUploadResult(result); // naya state — Step 3 mein banayenge
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      setActiveTab('documents');
+    }
+  }
+}}
               />
             </label>
           </div>
+          {uploadResult && (
+            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-sm space-y-2">
+              <div className="font-semibold">
+                Document Type: {uploadResult.extracted.document_type}
+              </div>
+              <pre className="text-xs overflow-x-auto">
+                {JSON.stringify(uploadResult.extracted, null, 2)}
+              </pre>
+              <div className="font-semibold">Verification Checks:</div>
+              <pre className="text-xs overflow-x-auto">
+                {JSON.stringify(uploadResult.verification, null, 2)}
+              </pre>
+            </div>
+          )}
+          {!isDocumentsLoading && documents.length === 0 && (
+  <div className="p-3 text-sm text-slate-500">No statutory records found for this bidder.</div>
+)}
+          {isDocumentsLoading && (
+      <div className="p-3 text-sm text-slate-500">Loading statutory records…</div>
+    )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
