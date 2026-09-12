@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { CURRENT_OFFICER } from '../../constants/officer';
 import { Tender, Bidder } from '../../types';
-
+import { getComplianceAlerts } from '../../utils/complianceAlerts';
 export type NavigationTab =
   | 'dashboard'
   | 'tenders'
@@ -77,6 +77,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           t.id.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
+  const alerts = getComplianceAlerts(bidders);
 
   const navItems = [
     {
@@ -299,77 +300,56 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </div>
 
             {/* Notification Bell */}
-            <div className="relative">
-              <button
-                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="p-2 text-slate-300 hover:text-white rounded-md hover:bg-slate-800 transition-colors relative"
-                title="3 Critical Compliance Alerts"
+<div className="relative">
+  <button
+    onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+    className="p-2 text-slate-300 hover:text-white rounded-md hover:bg-slate-800 transition-colors relative"
+    title={`${alerts.length} Compliance Alert${alerts.length === 1 ? '' : 's'}`}
+  >
+    <Bell className="w-4 h-4" />
+    {alerts.length > 0 && (
+      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#0F172A]" />
+    )}
+  </button>
+
+  {isNotificationOpen && (
+    <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-xl py-2 z-50 text-slate-800">
+      <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-900">Critical Flags Requiring Review</span>
+        <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded">
+          {alerts.length} Pending
+        </span>
+      </div>
+      <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+        {alerts.length > 0 ? (
+          alerts.map((alert) => (
+            <div
+              key={alert.id}
+              onClick={() => {
+                onSelectBidder(alert.bidderId);
+                setIsNotificationOpen(false);
+              }}
+              className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer"
+            >
+              <div
+                className={`flex items-center space-x-1.5 text-xs font-bold ${
+                  alert.severity === 'CRITICAL' ? 'text-red-700' : 'text-amber-700'
+                }`}
               >
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#0F172A]" />
-              </button>
-
-              {isNotificationOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-xl py-2 z-50 text-slate-800">
-                  <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Critical Flags Requiring Review</span>
-                    <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded">
-                      3 Pending
-                    </span>
-                  </div>
-                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                    <div
-                      onClick={() => {
-                        onSelectBidder('BID-2026-0047');
-                        setIsNotificationOpen(false);
-                      }}
-                      className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer"
-                    >
-                      <div className="flex items-center space-x-1.5 text-xs font-bold text-red-700">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>Turnover Mismatch Detected</span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">
-                        ABC Engineering: Declared ₹18.4 Cr vs Audited ₹12.7 Cr
-                      </div>
-                    </div>
-
-                    <div
-                      onClick={() => {
-                        onSelectBidder('BID-2026-0047');
-                        setIsNotificationOpen(false);
-                      }}
-                      className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer"
-                    >
-                      <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-700">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>OEM Validity Expiry in 18 Days</span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">
-                        ABC Engineering: Authorization ends before bid closing
-                      </div>
-                    </div>
-
-                    <div
-                      onClick={() => {
-                        onSelectBidder('BID-2026-0050');
-                        setIsNotificationOpen(false);
-                      }}
-                      className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer"
-                    >
-                      <div className="flex items-center space-x-1.5 text-xs font-bold text-red-700">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>Watchlist Match in GeM Registry</span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">
-                        Nova Industrial Technologies: 2024 debarment record
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{alert.title}</span>
+              </div>
+              <div className="text-[11px] text-slate-600 mt-0.5">{alert.message}</div>
+              <div className="text-[10px] text-slate-400 mt-1">Tender: {alert.tenderId}</div>
             </div>
-
+          ))
+        ) : (
+          <div className="px-4 py-3 text-xs text-slate-400 italic">No critical alerts</div>
+        )}
+      </div>
+    </div>
+  )}
+</div>
             {/* Officer Profile Badge */}
             <div className="flex items-center space-x-2 pl-3 border-l border-slate-700">
               <div className="w-7 h-7 rounded-full bg-teal-800 text-teal-100 flex items-center justify-center text-xs font-bold border border-teal-600">
