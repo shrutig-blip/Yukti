@@ -448,3 +448,62 @@ def verify_certificate_against_records(bidder_id: str, extracted: dict) -> dict:
         "checks": checks,
         "all_passed": all(c["passed"] for c in checks) if checks else False,
     }
+
+def _format_activity_detail(check: dict) -> str:
+    """Human-readable reason for why this specific check passed/failed —
+    the raw 'status' field alone (e.g. GST 'Active') can be true even when
+    the check failed for a different reason (filing lapsed, name mismatch)."""
+    check_type = check["check"]
+    if check.get("detail"):
+        return check["detail"]
+
+    if check_type == "gst":
+        if not check.get("name_match", True):
+            return "Registered name does not match bidder record"
+        if check.get("filing_status") not in (None, "Up to date"):
+            return f"Filing status: {check.get('filing_status')}"
+        return check.get("status", "")
+    elif check_type == "pan":
+        if not check.get("name_match", True):
+            return "Name on PAN does not match bidder record"
+        return check.get("it_compliance_status", "")
+    elif check_type == "udyam":
+        return check.get("status", "")
+    elif check_type == "blacklist":
+        return check.get("reason") or check.get("status", "")
+    elif check_type == "epfo_esic":
+        return check.get("status", "")
+    return ""
+
+
+def get_recent_verification_activity(limit: int = 10):
+    """
+    Live verification activity feed. Unlike a stored historical audit log,
+    this runs the real GST/PAN/Udyam/Blacklist/EPFO checks (via
+    verify_bidder_credentials) against bidders and returns individual check
+    results, flagged/failed checks first. There is no historical audit-trail
+    table backing this — "timestamp" reflects when the check was actually
+    run (now), not a stored past event.
+    """
+    activity = []
+    now = datetime.now().isoformat()
+
+    for bidder_id in bidders_df["bidder_id"].tolist():
+        bidder = get_bidder_by_id(bidder_id)
+        result = verify_bidder_credentials(bidder_id)
+        if result is None:
+            continue
+        for check in result["checks"]:
+            activity.append({
+                "bidder_id": bidder_id,
+                "bidder_name": bidder["company_name"],
+                "check_type": check["check"],
+                "passed": check["passed"],
+                "detail": _format_activity_detail(check),
+                "reference_id": f"VER-{check['check'].upper()}-{bidder_id}",
+                "timestamp": now,
+            })
+
+    # Flagged/failed checks are more actionable for an officer — surface those first
+    activity.sort(key=lambda a: a["passed"])
+    return activity[:limit]
