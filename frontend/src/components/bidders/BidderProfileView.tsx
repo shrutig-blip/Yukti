@@ -40,6 +40,7 @@ import {
 } from '../../types';
 import { DocumentInspectModal } from './DocumentInspectModal';
 import { ClarificationGeneratorModal } from './ClarificationGeneratorModal';
+
 import { WhatIfSimulatorModal } from './WhatIfSimulatorModal';
 import { HumanDecisionModal } from '../decision/HumanDecisionModal';
 import { documentService } from '../../services/documentService';
@@ -1269,6 +1270,8 @@ useEffect(() => {
       {/* Clarification Generator Modal */}
       <ClarificationGeneratorModal
         bidder={bidder}
+        tender={tender}
+        contradictions={contradictions}
         isOpen={isClarificationModalOpen}
         onClose={() => setIsClarificationModalOpen(false)}
         onSendClarification={handleSendClarification}
@@ -1277,6 +1280,8 @@ useEffect(() => {
       {/* What-If Simulator Modal */}
       <WhatIfSimulatorModal
         bidder={bidder}
+        tender={tender}
+        contradictions={contradictions}
         isOpen={isSimulatorOpen}
         onClose={() => setIsSimulatorOpen(false)}
       />
@@ -1284,6 +1289,8 @@ useEffect(() => {
       {/* Human Decision Modal */}
       <HumanDecisionModal
         bidder={bidder}
+        tender={tender}
+        contradictions={contradictions}
         isOpen={isDecisionModalOpen}
         onClose={() => setIsDecisionModalOpen(false)}
         onSubmitDecision={handleDecisionRecorded}
