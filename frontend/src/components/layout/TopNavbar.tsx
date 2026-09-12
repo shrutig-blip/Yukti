@@ -20,6 +20,7 @@ import {
   Layers,
   X,
 } from 'lucide-react';
+import { CURRENT_OFFICER } from '../../constants/officer';
 import { Tender, Bidder } from '../../types';
 
 export type NavigationTab =
@@ -372,11 +373,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             {/* Officer Profile Badge */}
             <div className="flex items-center space-x-2 pl-3 border-l border-slate-700">
               <div className="w-7 h-7 rounded-full bg-teal-800 text-teal-100 flex items-center justify-center text-xs font-bold border border-teal-600">
-                SR
+                {CURRENT_OFFICER.initials}
               </div>
               <div className="hidden md:block text-left">
-                <div className="text-xs font-bold text-white leading-tight">S. Ramanathan</div>
-                <div className="text-[10px] text-slate-400 leading-tight">DGM (Procurement)</div>
+                <div className="text-xs font-bold text-white leading-tight">{CURRENT_OFFICER.name}</div>
+                <div className="text-[10px] text-slate-400 leading-tight">{CURRENT_OFFICER.designation}</div>
               </div>
             </div>
           </div>

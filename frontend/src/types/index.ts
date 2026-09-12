@@ -58,6 +58,12 @@ export interface Bidder {
   incorporationDate: string;
   registeredAddress: string;
   officerDecision?: OfficerDecision;
+  declaredTurnoverCr: number;
+  auditedTurnoverCr: number;
+  turnoverMismatch: boolean; // true if audited value differs from declared by >2%
+  category: string;
+  oemAuthorizationExpiry: string | null; // ISO date; null when not an OEM-category bidder
+  oemAuthorizationStatus: 'NOT_APPLICABLE' | 'EXPIRED' | 'EXPIRING_SOON' | 'VALID';
 }
 
 export interface ValidationCheck {

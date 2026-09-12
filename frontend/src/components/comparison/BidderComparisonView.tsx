@@ -88,7 +88,7 @@ export const BidderComparisonView: React.FC<BidderComparisonViewProps> = ({
                     : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                {b.name.split(' ')[0]} ({b.id.split('-')[2]})
+                {b.name.split(' ')[0]} ({b.id})
               </button>
             ))}
           </div>
@@ -186,22 +186,14 @@ export const BidderComparisonView: React.FC<BidderComparisonViewProps> = ({
                 </td>
                 {selectedBidders.map((b) => (
                   <td key={b.id} className="py-3 px-4 border-r border-slate-200 last:border-r-0">
-                    {b.id === 'BID-2026-0047' ? (
-                      <div className="space-y-1">
-                        <div className="text-slate-800">Declared: <strong>₹18.40 Cr</strong></div>
-                        <div className="text-red-700 font-semibold">Audited: ₹12.72 Cr (Mismatch)</div>
+                    <div className="space-y-1">
+                      <div className="text-slate-800">
+                        Declared: <strong>₹{b.declaredTurnoverCr.toFixed(2)} Cr</strong>
                       </div>
-                    ) : b.id === 'BID-2026-0048' ? (
-                      <div className="space-y-1">
-                        <div className="text-slate-800">Declared: <strong>₹24.10 Cr</strong></div>
-                        <div className="text-emerald-700 font-semibold">Audited: ₹24.10 Cr (Match)</div>
+                      <div className={b.turnoverMismatch ? 'text-red-700 font-semibold' : 'text-emerald-700 font-semibold'}>
+                        Audited: ₹{b.auditedTurnoverCr.toFixed(2)} Cr ({b.turnoverMismatch ? 'Mismatch' : 'Match'})
                       </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <div className="text-slate-800">Declared: <strong>₹9.80 Cr</strong></div>
-                        <div className="text-red-700 font-semibold">Audited: ₹8.40 Cr (Below threshold)</div>
-                      </div>
-                    )}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -211,26 +203,37 @@ export const BidderComparisonView: React.FC<BidderComparisonViewProps> = ({
                 <td className="py-3 px-4 font-bold text-slate-700 border-r border-slate-200">
                   OEM Authorization Validity
                 </td>
-                {selectedBidders.map((b) => (
-                  <td key={b.id} className="py-3 px-4 border-r border-slate-200 last:border-r-0">
-                    {b.id === 'BID-2026-0047' ? (
-                      <div>
-                        <span className="text-amber-800 font-bold">Expires: 28 Sep 2026</span>
-                        <div className="text-[10px] text-red-700 font-medium mt-0.5">⚠️ Expires 2d before bid validity</div>
-                      </div>
-                    ) : b.id === 'BID-2026-0048' ? (
-                      <div>
-                        <span className="text-emerald-800 font-bold">Expires: 31 Dec 2027</span>
-                        <div className="text-[10px] text-emerald-700 font-medium mt-0.5">✓ Fully valid through contract</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="text-red-800 font-bold">Expired: 15 Aug 2026</span>
-                        <div className="text-[10px] text-red-700 font-medium mt-0.5">✗ Non-compliant</div>
-                      </div>
-                    )}
-                  </td>
-                ))}
+                {selectedBidders.map((b) => {
+                  const formattedDate = b.oemAuthorizationExpiry
+                    ? new Date(b.oemAuthorizationExpiry).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : null;
+                  return (
+                    <td key={b.id} className="py-3 px-4 border-r border-slate-200 last:border-r-0">
+                      {b.oemAuthorizationStatus === 'NOT_APPLICABLE' ? (
+                        <span className="text-slate-400 font-medium text-[11px]">Not applicable (non-OEM category)</span>
+                      ) : b.oemAuthorizationStatus === 'EXPIRED' ? (
+                        <div>
+                          <span className="text-red-800 font-bold">Expired: {formattedDate}</span>
+                          <div className="text-[10px] text-red-700 font-medium mt-0.5">✗ Non-compliant</div>
+                        </div>
+                      ) : b.oemAuthorizationStatus === 'EXPIRING_SOON' ? (
+                        <div>
+                          <span className="text-amber-800 font-bold">Expires: {formattedDate}</span>
+                          <div className="text-[10px] text-amber-700 font-medium mt-0.5">⚠️ Expiring soon — verify against bid validity</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-emerald-800 font-bold">Expires: {formattedDate}</span>
+                          <div className="text-[10px] text-emerald-700 font-medium mt-0.5">✓ Valid</div>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
 
               {/* Row: Debarment Check */}

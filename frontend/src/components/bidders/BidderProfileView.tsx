@@ -43,6 +43,7 @@ import { complianceService } from '../../services/complianceService';
 import { riskService } from '../../services/riskService';
 import { auditService } from '../../services/auditService';
 import { verificationService } from '../../services/verificationService';
+import { CURRENT_OFFICER } from '../../constants/officer';
 
 interface BidderProfileViewProps {
   bidder: Bidder;
@@ -209,7 +210,7 @@ const [uploadResult, setUploadResult] = useState<{ extracted: any; verification:
     };
 
     auditService.logEvent({
-      actor: 'S. Ramanathan (DGM Procurement)',
+      actor: `${CURRENT_OFFICER.name} (${CURRENT_OFFICER.designation})`,
       role: 'Procurement Officer',
       action: 'Issued Official Clarification Notice',
       source: 'Clarification Drafting Engine',
