@@ -11,15 +11,16 @@ from auth import (
     get_current_user, to_user_out,
 )
 from typing import Optional, List
-import google.generativeai as genai
+from groq import Groq
+from dotenv import load_dotenv
 
-# Free API key from https://aistudio.google.com/apikey (no billing needed).
-# Set it before starting uvicorn, e.g.:
-#   set GOOGLE_API_KEY=your-key-here      (Windows cmd)
-#   $env:GOOGLE_API_KEY="your-key-here"   (Windows PowerShell)
-#   export GOOGLE_API_KEY=your-key-here   (Mac/Linux)
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+# Loads variables from backend/.env (if present) into the environment —
+# this is the PERMANENT fix so you never have to set the API key
+# manually in every new terminal again.
+load_dotenv()
+
+# Free API key from https://console.groq.com/keys (no billing needed).
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 app = FastAPI()
 
@@ -338,8 +339,12 @@ facts beyond what is listed above. Sign off as "For Chennai Petroleum
 Corporation Limited (CPCL)". Return ONLY the letter text, nothing else."""
 
     try:
-        response = gemini_model.generate_content(prompt)
-        letter_text = response.text
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1200,
+        )
+        letter_text = response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI letter generation failed: {e}")
 

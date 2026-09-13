@@ -21,8 +21,7 @@ interface AuditTrailViewProps {
 }
 
 export const AuditTrailView: React.FC<AuditTrailViewProps> = ({ onSelectBidder }) => {
-  // after
-const [records, setRecords] = useState<AuditRecord[]>(auditService.getRecords());
+  const [records, setRecords] = useState<AuditRecord[]>([]);
 useEffect(() => {
   let cancelled = false;
   auditService.getRecords().then((r) => {
