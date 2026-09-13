@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Scale, CheckCircle2, XCircle, Clock, Send, AlertTriangle, X, Shield } from 'lucide-react';
 import { Bidder, OfficerDecision } from '../../types';
-import { CURRENT_OFFICER } from '../../constants/officer';
+import { useCurrentOfficer } from '../../context/OfficerContext';
 
 interface HumanDecisionModalProps {
   bidder: Bidder;
@@ -16,15 +16,16 @@ export const HumanDecisionModal: React.FC<HumanDecisionModalProps> = ({
   onClose,
   onSubmitDecision,
 }) => {
-  if (!isOpen) return null;
-
   const [selectedDecision, setSelectedDecision] = useState<'QUALIFIED' | 'DISQUALIFIED' | 'CLARIFICATION_REQUESTED' | 'PENDING'>('CLARIFICATION_REQUESTED');
+  const CURRENT_OFFICER = useCurrentOfficer();
   const [officerName, setOfficerName] = useState(CURRENT_OFFICER.name);
   const [officerDesignation, setOfficerDesignation] = useState(CURRENT_OFFICER.fullDesignation);
   const [comments, setComments] = useState(
     'Seeking formal reconciliation for declared ₹18.40 Cr turnover vs ₹12.72 Cr audited statement, and OEM authorization extension beyond tender deadline.'
   );
   const [conditions, setConditions] = useState('Subject to verified CA reconciliation certificate and OEM 90-day extension letter.');
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

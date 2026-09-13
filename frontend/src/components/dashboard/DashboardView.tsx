@@ -1,4 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
+declare module 'react/jsx-runtime' {
+  export const Fragment: any;
+  export function jsx(type: any, props?: any, key?: any): any;
+  export function jsxs(type: any, props?: any, key?: any): any;
+}
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
+}
+
 import {
   FileSpreadsheet,
   Users,
@@ -14,24 +29,15 @@ import {
   ExternalLink,
   ChevronRight,
 } from 'lucide-react';
-import { Tender, Bidder } from '../../types';
-
-declare module 'react/jsx-runtime';
-
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      [elemName: string]: any;
-    }
-  }
-}
+import { Tender, Bidder, AuditRecord } from '../../types';
+import { auditService } from '../../services/auditService';
 
 interface DashboardViewProps {
   tenders: Tender[];
   bidders: Bidder[];
   onSelectBidder: (bidderId: string) => void;
   onSelectTender: (tenderId: string) => void;
-  onNavigateToTab: (tab: any) => void;
+  onNavigateToTab: (tab: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -74,6 +80,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     (b: Bidder) => b.riskLevel === 'HIGH' || b.riskLevel === 'CRITICAL'
   ).length;
   const riskPct = (n: number) => (totalBidders > 0 ? Math.round((n / totalBidders) * 100) : 0);
+    const [recentActivity, setRecentActivity] = useState<AuditRecord[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    auditService
+      .getRecentActivity(4)
+      .then((data) => {
+        if (!cancelled) setRecentActivity(data);
+      })
+      .catch(() => {
+        if (!cancelled) setActivityError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Top Banner / Hero Context */}
@@ -449,73 +476,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="space-y-3">
-            {/* Item 1 */}
-            <div className="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-900">ABC Engineering Pvt. Ltd.</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  GSTN MATCH
-                </span>
-              </div>
-              <div className="text-xs text-slate-600 mt-1">
-                Active GST verified via GSTN API
-              </div>
-              <div className="text-xs text-slate-400 mt-1 flex items-center justify-between font-mono">
-                <span>09 Sep, 14:32 IST</span>
-                <span>VER-GST-84721</span>
-              </div>
-            </div>
-
-            {/* Item 2 */}
-            <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/20 hover:bg-amber-50 transition-colors">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-900">Bharat Industrial Systems</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                  OEM REVIEW
-                </span>
-              </div>
-              <div className="text-xs text-slate-600 mt-1">
-                OEM authorization tier gap detected
-              </div>
-              <div className="text-xs text-slate-400 mt-1 flex items-center justify-between font-mono">
-                <span>09 Sep, 11:15 IST</span>
-                <span>VER-OEM-44102</span>
-              </div>
-            </div>
-
-            {/* Item 3 */}
-            <div className="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-900">Zenith Infrastructure Ltd.</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  CVC CLEAR
-                </span>
-              </div>
-              <div className="text-xs text-slate-600 mt-1">
-                Debarment check clean across CVC & GeM
-              </div>
-              <div className="text-xs text-slate-400 mt-1 flex items-center justify-between font-mono">
-                <span>08 Sep, 16:45 IST</span>
-                <span>VER-DEBAR-0019</span>
-              </div>
-            </div>
-
-            {/* Item 4 */}
-            <div className="p-3 rounded-lg border border-red-200 bg-red-50/30 hover:bg-red-50 transition-colors">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-900">ABC Engineering Pvt. Ltd.</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">
-                  MCA MISMATCH
-                </span>
-              </div>
-              <div className="text-xs text-slate-600 mt-1">
-                ₹18.4 Cr declared vs ₹12.7 Cr audited in MCA-21
-              </div>
-              <div className="text-xs text-slate-400 mt-1 flex items-center justify-between font-mono">
-                <span>09 Sep, 14:34 IST</span>
-                <span>VER-MCA-99120</span>
-              </div>
-            </div>
+            {activityLoading ? (
+              <p className="text-sm text-slate-500 py-4 text-center">Loading activity...</p>
+            ) : activityError ? (
+              <p className="text-sm text-red-500 py-4 text-center">
+                Could not load verification activity.
+              </p>
+            ) : recentActivity.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4 text-center">No recent activity.</p>
+            ) : (
+              recentActivity.map((record) => {
+                const isPass = record.result === 'PASS';
+                return (
+                  <div
+                    key={record.id}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      isPass
+                        ? 'border-slate-200 hover:bg-slate-50'
+                        : 'border-red-200 bg-red-50/30 hover:bg-red-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-900">
+                        {/* backend doesn't expose bidder_name directly on AuditRecord, so we show the action here */}
+                        {record.action}
+                      </span>
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                          isPass
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : 'bg-red-100 text-red-800 border-red-200'
+                        }`}
+                      >
+                        {record.result}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-600 mt-1">{record.comments}</div>
+                    <div className="text-xs text-slate-400 mt-1 flex items-center justify-between font-mono">
+                      <span>{record.timestamp}</span>
+                      <span>{record.evidenceRef}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
