@@ -43,6 +43,7 @@ interface RawComplianceDetail {
   bidder_value: any;
   passed: boolean;
   note?: string;
+  rule_reference?: string; 
 }
 
 interface RawComplianceResult {
@@ -123,7 +124,9 @@ class ComplianceService {
           { source: 'Required (tender criteria)', value: String(detail.required) },
           { source: 'Bidder declared', value: String(detail.bidder_value) },
         ],
-        assessment: `Does not meet the tender's ${CRITERION_LABELS[detail.criterion] || detail.criterion} requirement.`,
+        assessment: `Does not meet the tender's ${CRITERION_LABELS[detail.criterion] || detail.criterion} requirement.${
+  detail.rule_reference ? ` (Basis: ${detail.rule_reference})` : ''
+}`,
         severity: 'HIGH',
         recommendation: 'Request clarification or supporting documentation from the bidder before proceeding.',
         status: 'Active',
