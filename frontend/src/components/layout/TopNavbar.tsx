@@ -19,6 +19,7 @@ import {
   Layers,
   X,
   LogOut,
+   Network,
 } from 'lucide-react';
 import { useCurrentOfficer } from '../../context/OfficerContext';
 import { Tender, Bidder } from '../../types';
@@ -32,6 +33,7 @@ export type NavigationTab =
   | 'bidder-profile'
   | 'compliance-analysis'
   | 'bidder-comparison'
+  | 'collusion-signals'
   | 'audit-trail'
   | 'reports';
 
@@ -126,6 +128,13 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       label: 'Comparison',
       icon: Scale,
       badge: undefined,
+    },
+    {
+      id: 'collusion-signals' as NavigationTab,   // <-- YE POORA BLOCK ADD KARO
+      label: 'Collusion Signals',
+      icon: Network,
+      badge: undefined,
+      highlight: true,
     },
     {
       id: 'audit-trail' as NavigationTab,
