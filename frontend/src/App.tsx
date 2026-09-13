@@ -7,6 +7,7 @@ import { TenderChecklistAI } from './components/tenders/TenderChecklistAI';
 import { BiddersView } from './components/bidders/BiddersView';
 import { BidderProfileView } from './components/bidders/BidderProfileView';
 import { BidderComparisonView } from './components/comparison/BidderComparisonView';
+import { CollusionSignalsView } from './components/tenders/collusionSignalsView';
 import { ComplianceAnalysisView } from './components/compliance/ComplianceAnalysisView';
 import { ComplianceReportView } from './components/reports/ComplianceReportView';
 import { AuditTrailView } from './components/audit/AuditTrailView';
@@ -280,6 +281,12 @@ function AppContent() {
             bidders={bidders}
             onSelectBidder={handleSelectBidder}
             onBack={() => setActiveTab('bidders')}
+          />
+        )}
+        {activeTab === 'collusion-signals' && (      // <-- YE POORA BLOCK ADD KARO
+          <CollusionSignalsView
+            tender={currentTender}
+            onSelectBidder={handleSelectBidder}
           />
         )}
 

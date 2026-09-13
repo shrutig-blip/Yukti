@@ -16,10 +16,10 @@ import {
   AlertTriangle,
   ChevronRight,
   Info,
-  Shield,
   Layers,
   X,
   LogOut,
+   Network,
 } from 'lucide-react';
 import { useCurrentOfficer } from '../../context/OfficerContext';
 import { Tender, Bidder } from '../../types';
@@ -33,6 +33,7 @@ export type NavigationTab =
   | 'bidder-profile'
   | 'compliance-analysis'
   | 'bidder-comparison'
+  | 'collusion-signals'
   | 'audit-trail'
   | 'reports';
 
@@ -129,6 +130,13 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       badge: undefined,
     },
     {
+      id: 'collusion-signals' as NavigationTab,   // <-- YE POORA BLOCK ADD KARO
+      label: 'Collusion Signals',
+      icon: Network,
+      badge: undefined,
+      highlight: true,
+    },
+    {
       id: 'audit-trail' as NavigationTab,
       label: 'Audit Trail',
       icon: History,
@@ -149,8 +157,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Brand & Organization */}
           <div className="flex items-center space-x-3.5 shrink-0">
-            <div className="w-10 h-10 rounded-lg bg-[#0F766E] border border-teal-500/40 flex items-center justify-center text-white font-black text-lg shadow-xs">
-              <Shield className="w-5 h-5 text-teal-100" />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/yukti-icon.png" alt="" className="w-10 h-10 object-contain" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
