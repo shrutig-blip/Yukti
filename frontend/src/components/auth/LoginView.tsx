@@ -105,9 +105,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         <div className="relative">
           <div className="flex items-center space-x-3">
-            <div className="w-11 h-11 rounded bg-white/10 border border-white/20 flex items-center justify-center font-bold text-sm tracking-widest text-teal-300">
-              CPCL
-            </div>
+            <img
+              src="/yukti-logo.png"
+              alt="Yukti"
+              className="w-[200px] h-auto shrink-0"
+            />
             <div>
               <div className="text-sm font-semibold text-white leading-tight">
                 Chennai Petroleum Corporation Limited
