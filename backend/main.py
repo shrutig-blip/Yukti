@@ -5,6 +5,7 @@ import shutil, tempfile, os
 import data_loader
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
 from data_loader import verify_certificate_against_records
+from document_integrity import get_document_integrity
 from auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     get_user_by_email, create_user, verify_password, create_access_token,
@@ -40,7 +41,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 
 @app.get("/")
@@ -106,6 +106,7 @@ class AuditEventIn(BaseModel):
     result: str
     evidence_ref: str | None = None
     comments: str | None = None
+
 @app.post("/bidder/{bidder_id}/audit-log")
 def write_audit_event(bidder_id: str, event: AuditEventIn):
     if data_loader.get_bidder_by_id(bidder_id) is None:
@@ -120,6 +121,7 @@ def write_audit_event(bidder_id: str, event: AuditEventIn):
         evidence_ref=event.evidence_ref,
         comments=event.comments,
     )
+
 @app.get("/bidder/{bidder_id}/audit-log")
 def read_audit_log(bidder_id: str):
     result = data_loader.get_audit_log(bidder_id)
@@ -161,6 +163,7 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
     try:
         raw_text = extract_text_from_pdf(tmp_path)
         extracted = extract_certificate_fields(raw_text)
+        integrity = get_document_integrity(tmp_path)
     finally:
         os.remove(tmp_path)
 
@@ -170,6 +173,7 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
         "bidder_id": bidder_id,
         "extracted": extracted,
         "verification": verification,
+        "document_integrity": integrity,
     }
 
 @app.post("/auth/register", response_model=UserOut, status_code=201)
@@ -195,6 +199,82 @@ def read_timeline(bidder_id: str):
         raise HTTPException(status_code=404, detail="Bidder not found")
     return result
 
+
+# ---------------------------------------------------------------------------
+# Officer decision (Qualify / Disqualify / etc.) — persisted, survives refresh
+# ---------------------------------------------------------------------------
+
+class OfficerDecisionIn(BaseModel):
+    decision: str  # "QUALIFIED" | "DISQUALIFIED" | "CLARIFICATION_REQUESTED" | "PENDING"
+    officer_name: str
+    officer_designation: str
+    comments: str | None = None
+    conditions_or_stipulations: str | None = None
+
+@app.post("/bidder/{bidder_id}/decision")
+def create_officer_decision(bidder_id: str, decision: OfficerDecisionIn):
+    if data_loader.get_bidder_by_id(bidder_id) is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return data_loader.record_officer_decision(
+        bidder_id=bidder_id,
+        decision=decision.decision,
+        officer_name=decision.officer_name,
+        officer_designation=decision.officer_designation,
+        comments=decision.comments,
+        conditions_or_stipulations=decision.conditions_or_stipulations,
+    )
+
+@app.get("/bidder/{bidder_id}/decision")
+def read_officer_decision(bidder_id: str):
+    if data_loader.get_bidder_by_id(bidder_id) is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    result = data_loader.get_officer_decision(bidder_id)
+    if result is None:
+        return {"bidder_id": bidder_id, "decision": None}
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Tender create / requirement edit
+# ---------------------------------------------------------------------------
+
+class TenderCreateIn(BaseModel):
+    tender_id: str | None = None
+    tender_title: str
+    category_allowed: str  # e.g. "General;Medium;OEM"
+    min_turnover_cr: float
+    min_local_content_percent: float
+    msme_only: bool = False
+    startup_relaxation: bool = False
+
+@app.post("/tender")
+def create_tender(tender: TenderCreateIn):
+    result = data_loader.create_tender(tender.model_dump())
+    if result is None:
+        raise HTTPException(status_code=409, detail="A tender with this tender_id already exists")
+    return result
+
+class TenderRequirementUpdateIn(BaseModel):
+    tender_title: str | None = None
+    category_allowed: str | None = None
+    min_turnover_cr: float | None = None
+    min_local_content_percent: float | None = None
+    msme_only: bool | None = None
+    startup_relaxation: bool | None = None
+
+@app.patch("/tender/{tender_id}/requirement")
+def edit_tender_requirement(tender_id: str, updates: TenderRequirementUpdateIn):
+    result = data_loader.update_tender_requirement(
+        tender_id, updates.model_dump(exclude_unset=True)
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Tender not found")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# AI-drafted clarification letters (Gemini)
+# ---------------------------------------------------------------------------
 
 class ContradictionIn(BaseModel):
     field: str
@@ -267,4 +347,3 @@ Corporation Limited (CPCL)". Return ONLY the letter text, nothing else."""
         raise HTTPException(status_code=502, detail=f"AI letter generation failed: {e}")
 
     return {"letter": letter_text}
-  
