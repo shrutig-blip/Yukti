@@ -42,16 +42,59 @@ def _try_ocr_page(pdf_path: str, page_index: int) -> str:
 
 import re
 
+# --- Certificate type detection --------------------------------------------
+#
+# Previous version required one exact adjacent phrase ("GST Registration
+# Certificate", "Udyam Registration Certificate"). Real certificates vary in
+# title wording ("Certificate of Registration", "Registration Certificate
+# for GST", the title split across lines with a logo/QR code in between,
+# etc.), so a single exact-phrase match was too brittle and returned
+# "unknown" for genuine certificates.
+#
+# This version checks several independent signals per type — a strict data
+# format (GSTIN shape, Udyam number shape, PAN shape) OR a looser keyword —
+# and returns the first type with any signal present. GST is checked before
+# PAN because a GSTIN embeds a PAN-shaped substring inside it (positions
+# 2-11), so checking GST first avoids a GST certificate being misdetected
+# as a PAN document.
+
+# GSTIN: 2-digit state code + 10-char PAN + 1 entity code + 'Z' + 1 checksum
+_GSTIN_SHAPE_RE = re.compile(r"\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b")
+# PAN: 5 letters, 4 digits, 1 letter
+_PAN_SHAPE_RE = re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b")
+# Udyam number: e.g. UDYAM-DL-01-1234567
+_UDYAM_SHAPE_RE = re.compile(r"\bUDYAM-[A-Z]{2}-\d{2}-\d{7}\b", re.IGNORECASE)
+
+
 def detect_certificate_type(text: str) -> str:
-    if re.search(r"GST\s*Registration\s*Certificate", text, re.IGNORECASE):
+    text = text or ""
+
+    if (
+        _GSTIN_SHAPE_RE.search(text)
+        or re.search(r"\bGSTIN\b", text, re.IGNORECASE)
+        or re.search(r"GST\s*Registration\s*Certificate", text, re.IGNORECASE)
+        or re.search(r"Goods\s+and\s+Services\s+Tax", text, re.IGNORECASE)
+    ):
         return "gst"
-    if re.search(r"Udyam\s*Registration\s*Certificate", text, re.IGNORECASE):
+
+    if (
+        _UDYAM_SHAPE_RE.search(text)
+        or re.search(r"Udyam\s*Registration", text, re.IGNORECASE)
+        or re.search(r"Udyam\s*(?:Registration\s*)?Number", text, re.IGNORECASE)
+    ):
         return "udyam"
-    if re.search(r"Permanent\s*Account\s*Number|Income\s*Tax\s*Department", text, re.IGNORECASE):
+
+    if (
+        _PAN_SHAPE_RE.search(text)
+        or re.search(r"Permanent\s*Account\s*Number|Income\s*Tax\s*Department", text, re.IGNORECASE)
+    ):
         return "pan"
-    if re.search(r"Employees[’']?\s*Provident\s*Fund|EPFO", text, re.IGNORECASE):
+
+    if re.search(r"Employees[’']?\s*Provident\s*Fund|EPFO|Establishment\s*Code", text, re.IGNORECASE):
         return "epfo"
+
     return "unknown"
+
 
 def _apply_patterns(text: str, patterns: dict) -> dict:
     extracted = {}
@@ -119,6 +162,12 @@ def extract_gst_certificate_fields(text: str) -> dict:
         "date_of_registration": r"Date\s*of\s*Registration\s*[:\-]?\s*([\d\-]+)",
         "status": r"Status\s*[:\-]?\s*(\w+)",
     })
+    # Fallback: if there was no "GSTIN:" label but the GSTIN shape appears
+    # bare in the text, grab it directly rather than leaving the field null.
+    if not fields.get("gstin"):
+        shape_match = _GSTIN_SHAPE_RE.search(text)
+        if shape_match:
+            fields["gstin"] = shape_match.group(0)
     if fields.get("gstin"):
         corrected = correct_gstin_ocr_errors(fields["gstin"])
         if corrected != fields["gstin"]:
@@ -129,13 +178,18 @@ def extract_gst_certificate_fields(text: str) -> dict:
     return fields
 
 def extract_udyam_certificate_fields(text: str) -> dict:
-    return _apply_patterns(text, {
+    fields = _apply_patterns(text, {
         "enterprise_name": r"Name\s*of\s*Enterprise\s*[:\-]?\s*(.+)",
         "udyam_number": r"Udyam\s*Registration\s*Number\s*[:\-]?\s*(\S+)",
         "category": r"Category\s*[:\-]?\s*(\w+)",
         "date_of_registration": r"Date\s*of\s*Registration\s*[:\-]?\s*([\d\-]+)",
         "valid_upto": r"Valid\s*Upto\s*[:\-]?\s*([\d\-]+)",
     })
+    if not fields.get("udyam_number"):
+        shape_match = _UDYAM_SHAPE_RE.search(text)
+        if shape_match:
+            fields["udyam_number"] = shape_match.group(0)
+    return fields
 
 def extract_pan_certificate_fields(text: str) -> dict:
     return _apply_patterns(text, {

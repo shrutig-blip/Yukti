@@ -203,3 +203,38 @@ export interface ClarificationDraft {
   generatedBody: string;
   deadlineDays: number;
 }
+
+// --- Collusion / cartel signal detection (GET /tender/{id}/collusion-signals) ---
+
+export interface CollusionNode {
+  bidderId: string;
+  companyName: string;
+  state: string;
+}
+
+export interface CollusionReason {
+  signal: 'same_registration_date' | 'similar_company_name';
+  severity: SeverityLevel;
+  detail: string;
+}
+
+export interface CollusionEdge {
+  bidderA: string;
+  bidderB: string;
+  sameState: boolean;
+  reasons: CollusionReason[];
+  severity: SeverityLevel;
+}
+
+export interface CollusionCluster {
+  bidderIds: string[];
+  size: number;
+}
+
+export interface CollusionSignalsResult {
+  tenderId: string;
+  bidderCount: number;
+  nodes: CollusionNode[];
+  edges: CollusionEdge[];
+  flaggedClusters: CollusionCluster[];
+}
