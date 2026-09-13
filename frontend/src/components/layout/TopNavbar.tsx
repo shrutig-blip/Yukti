@@ -19,10 +19,12 @@ import {
   Shield,
   Layers,
   X,
+  LogOut,
 } from 'lucide-react';
-import { CURRENT_OFFICER } from '../../constants/officer';
+import { useCurrentOfficer } from '../../context/OfficerContext';
 import { Tender, Bidder } from '../../types';
 import { getComplianceAlerts } from '../../utils/complianceAlerts';
+
 export type NavigationTab =
   | 'dashboard'
   | 'tenders'
@@ -44,6 +46,7 @@ interface TopNavbarProps {
   onSelectTender: (tenderId: string) => void;
   onSelectBidder: (bidderId: string) => void;
   onOpenGovernance?: () => void;
+  onLogout: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -55,7 +58,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   activeBidder,
   onSelectTender,
   onSelectBidder,
+  onLogout,
 }) => {
+  const CURRENT_OFFICER = useCurrentOfficer();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -363,6 +368,15 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Logout Button */}
+      <button
+        onClick={onLogout}
+        title="Log out"
+        className="p-2 text-slate-300 hover:text-white rounded-md hover:bg-slate-800 transition-colors"
+      >
+        <LogOut className="w-4 h-4" />
+      </button>      
 
       {/* Horizontal Navigation Bar (Clean, spacious horizontal view on the top) */}
       <div className="bg-white border-b border-slate-200">

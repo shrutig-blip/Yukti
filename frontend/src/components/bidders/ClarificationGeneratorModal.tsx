@@ -11,8 +11,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Bidder, ContradictionItem } from '../../types';
-import { CURRENT_OFFICER } from '../../constants/officer';
+import { useCurrentOfficer } from '../../context/OfficerContext';
 import { letterService } from '../../services/letterService';
+import { OfficerProfile } from '../../constants/officer';
 
 interface ClarificationGeneratorModalProps {
   bidder: Bidder;
@@ -32,7 +33,8 @@ interface ClarificationGeneratorModalProps {
 function buildFallbackLetterBody(
   bidder: Bidder,
   tender: { id: string; title: string },
-  contradictions: ContradictionItem[]
+  contradictions: ContradictionItem[],
+  officer: OfficerProfile
 ): string {
   const todayStr = new Date().toLocaleDateString('en-GB', {
     day: '2-digit',
@@ -73,8 +75,8 @@ Yours faithfully,
 
 For Chennai Petroleum Corporation Limited (CPCL),
 
-${CURRENT_OFFICER.name}
-${CURRENT_OFFICER.fullDesignation}
+${officer.name}
+${officer.fullDesignation}
 Mechanical Procurement Division, Manali Refinery, Chennai.`;
 }
 
@@ -86,6 +88,7 @@ export const ClarificationGeneratorModal: React.FC<ClarificationGeneratorModalPr
   tender,
   onSendClarification,
 }) => {
+  const officer = useCurrentOfficer();
   const [letterBody, setLetterBody] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -111,7 +114,7 @@ export const ClarificationGeneratorModal: React.FC<ClarificationGeneratorModalPr
       })
       .catch(() => {
         if (!cancelled) {
-          setLetterBody(buildFallbackLetterBody(bidder, tender, contradictions));
+          setLetterBody(buildFallbackLetterBody(bidder, tender, contradictions, officer));
           setUsedFallback(true);
         }
       })
@@ -121,7 +124,7 @@ export const ClarificationGeneratorModal: React.FC<ClarificationGeneratorModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, bidder.id, tender.id, contradictions]);
+  }, [isOpen, bidder.id, tender.id, contradictions, officer]);
 
   if (!isOpen) return null;
 

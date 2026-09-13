@@ -59,3 +59,7 @@ export function apiPostJson<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 }
+
+// Alias kept so existing callers (authService.ts) that import apiPost
+// keep working without changes — both names call the same implementation.
+export const apiPost = apiPostJson;

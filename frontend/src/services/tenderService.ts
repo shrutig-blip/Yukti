@@ -51,6 +51,9 @@ interface RawTenderCriteria {
   min_local_content_percent: number;
   msme_only: boolean;
   startup_relaxation: boolean;
+  department: string;
+  deadline: string;
+  estimated_value_cr: number;
 }
 
 interface RawBid {
@@ -207,9 +210,9 @@ class TenderService {
         return {
           id: c.tender_id,
           title: c.tender_title,
-          department: NOT_TRACKED,
-          deadline: NOT_TRACKED,
-          estimatedValue: NOT_TRACKED,
+          department: c.department,
+          deadline: c.deadline,
+          estimatedValue: `₹${c.estimated_value_cr} Cr`,
           biddersCount,
           verifiedCount,
           pendingCount,
