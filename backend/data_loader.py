@@ -1058,8 +1058,8 @@ def get_collusion_signals(tender_id: str):
         return None
 
     cohort = bidders_df[bidders_df["bidder_id"].isin(bidder_ids)].copy()
-    cohort["_normalized_name"] = cohort["company_name"].apply(_normalize_company_name)
-
+    cohort["normalized_name"] = cohort["company_name"].apply(_normalize_company_name)
+    
     nodes = [
         {
             "bidder_id": row["bidder_id"],
@@ -1082,11 +1082,11 @@ def get_collusion_signals(tender_id: str):
                 "detail": f"Both bidders were registered on {a.registration_date}",
             })
 
-        if a._normalized_name and a._normalized_name == b._normalized_name:
+        if a.normalized_name and a.normalized_name == b.normalized_name:
             reasons.append({
                 "signal": "similar_company_name",
                 "severity": "MEDIUM",
-                "detail": f"Core company name matches after stripping legal suffixes: \"{a._normalized_name}\"",
+                "detail": f"Core company name matches after stripping legal suffixes: \"{a.normalized_name}\"",
             })
 
         if not reasons:
