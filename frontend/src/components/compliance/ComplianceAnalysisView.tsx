@@ -97,6 +97,7 @@ export const ComplianceAnalysisView: React.FC<ComplianceAnalysisViewProps> = ({
     authorizationCompliance: 0,
   });
   const [isComplianceLoading, setIsComplianceLoading] = useState(true);
+  const [contradictions, setContradictions] = useState<import('../../types').ContradictionItem[]>([]);
 
   useEffect(() => {
     if (!activeBidder.id || !tender.id) return;
@@ -109,6 +110,11 @@ export const ComplianceAnalysisView: React.FC<ComplianceAnalysisViewProps> = ({
       })
       .finally(() => {
         if (!cancelled) setIsComplianceLoading(false);
+      });
+    complianceService
+      .getContradictions(activeBidder.id, tender.id)
+      .then((c) => {
+        if (!cancelled) setContradictions(c);
       });
     return () => {
       cancelled = true;
@@ -626,6 +632,8 @@ export const ComplianceAnalysisView: React.FC<ComplianceAnalysisViewProps> = ({
 
       <ClarificationGeneratorModal
         bidder={activeBidder}
+        tender={{ id: tender.id, title: tender.title }}
+        contradictions={contradictions}
         isOpen={isClarificationModalOpen}
         onClose={() => setIsClarificationModalOpen(false)}
         onSendClarification={() => setIsClarificationModalOpen(false)}

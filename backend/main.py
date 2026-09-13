@@ -5,22 +5,26 @@ import shutil, tempfile, os
 import data_loader
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
 from data_loader import verify_certificate_against_records
-from document_integrity import get_document_integrity
 from auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     get_user_by_email, create_user, verify_password, create_access_token,
     get_current_user, to_user_out,
 )
 from typing import Optional, List
-import google.generativeai as genai
+from groq import Groq
+from dotenv import load_dotenv
 
-# Free API key from https://aistudio.google.com/apikey (no billing needed).
-# Set it before starting uvicorn, e.g.:
-#   set GOOGLE_API_KEY=your-key-here      (Windows cmd)
-#   $env:GOOGLE_API_KEY="your-key-here"   (Windows PowerShell)
-#   export GOOGLE_API_KEY=your-key-here   (Mac/Linux)
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+# Loads variables from backend/.env (if present) into the environment —
+# this is the PERMANENT fix so you never have to set the API key
+# manually in every new terminal again.
+load_dotenv()
+
+# Free API key from https://console.groq.com/keys (no billing needed).
+# NOTE: the client is created lazily inside the endpoint (not here at
+# import time) so that importing this module never fails just because
+# GROQ_API_KEY isn't set — e.g. in CI, where there's no .env file.
+def _get_groq_client() -> Groq:
+    return Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 app = FastAPI()
 
@@ -163,7 +167,6 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
     try:
         raw_text = extract_text_from_pdf(tmp_path)
         extracted = extract_certificate_fields(raw_text)
-        integrity = get_document_integrity(tmp_path)
     finally:
         os.remove(tmp_path)
 
@@ -173,7 +176,6 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
         "bidder_id": bidder_id,
         "extracted": extracted,
         "verification": verification,
-        "document_integrity": integrity,
     }
 
 @app.post("/auth/register", response_model=UserOut, status_code=201)
@@ -341,8 +343,13 @@ facts beyond what is listed above. Sign off as "For Chennai Petroleum
 Corporation Limited (CPCL)". Return ONLY the letter text, nothing else."""
 
     try:
-        response = gemini_model.generate_content(prompt)
-        letter_text = response.text
+        groq_client = _get_groq_client()
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1200,
+        )
+        letter_text = response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI letter generation failed: {e}")
 
