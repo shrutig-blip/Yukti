@@ -5,6 +5,7 @@ import shutil, tempfile, os
 import data_loader
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
 from data_loader import verify_certificate_against_records
+from document_integrity import get_document_integrity
 from auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     get_user_by_email, create_user, verify_password, create_access_token,
@@ -163,6 +164,7 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
     try:
         raw_text = extract_text_from_pdf(tmp_path)
         extracted = extract_certificate_fields(raw_text)
+        integrity = get_document_integrity(tmp_path)
     finally:
         os.remove(tmp_path)
 
@@ -172,6 +174,7 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
         "bidder_id": bidder_id,
         "extracted": extracted,
         "verification": verification,
+        "document_integrity": integrity,
     }
 
 @app.post("/auth/register", response_model=UserOut, status_code=201)
