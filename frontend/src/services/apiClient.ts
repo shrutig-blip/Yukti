@@ -51,3 +51,11 @@ export function apiGet<T>(path: string): Promise<T> {
 export function apiPostForm<T>(path: string, formData: FormData): Promise<T> {
   return request<T>(path, { method: 'POST', body: formData });
 }
+
+export function apiPost<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}

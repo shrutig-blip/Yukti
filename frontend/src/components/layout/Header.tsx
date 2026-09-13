@@ -13,7 +13,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { Tender, Bidder } from '../../types';
-import { CURRENT_OFFICER } from '../../constants/officer';
+import { useCurrentOfficer } from '../../context/OfficerContext';
 import { getComplianceAlerts } from '../../utils/complianceAlerts';
 interface HeaderProps {
   onSearchSelect?: (type: 'bidder' | 'tender', id: string) => void;
@@ -31,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateToBidder,
   onNavigateToTender,
 }) => {
+  const CURRENT_OFFICER = useCurrentOfficer();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);

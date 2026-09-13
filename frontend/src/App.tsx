@@ -10,12 +10,19 @@ import { BidderComparisonView } from './components/comparison/BidderComparisonVi
 import { ComplianceAnalysisView } from './components/compliance/ComplianceAnalysisView';
 import { ComplianceReportView } from './components/reports/ComplianceReportView';
 import { AuditTrailView } from './components/audit/AuditTrailView';
+import { LoginView } from './components/auth/LoginView';
+import { OfficerProvider, useOfficerContext } from './context/OfficerContext';
+import { OfficerSelectView } from './components/officer/OfficerSelectView';
+import { DEMO_ACCOUNT_EMAIL } from './config/demo';
+import { NonDemoAccountView } from './components/auth/NonDemoAccountView';
 
+import { authService } from './services/authService';
 import { tenderService } from './services/tenderService';
 import { bidderService } from './services/bidderService';
 import { Tender, Bidder, TenderRequirement } from './types';
 
-export default function App() {
+function AppContent() {
+  const { officer, setOfficer, clearOfficer } = useOfficerContext();
   const [activeTab, setActiveTab] = useState<NavigationTab | 'bidder-profile'>('dashboard');
   const [isGovernanceModalOpen, setIsGovernanceModalOpen] = useState(false);
 
@@ -27,8 +34,15 @@ export default function App() {
   const [tenderBidders, setTenderBidders] = useState<Bidder[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
+  const currentUser = authService.getStoredUser();
+  const isDemoAccount = currentUser?.email?.toLowerCase() === DEMO_ACCOUNT_EMAIL.toLowerCase();
 
   useEffect(() => {
+    if (!isDemoAccount) {
+      setIsInitialLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -56,7 +70,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isDemoAccount]);
 
   const currentTender =
     tenders.find((t) => t.id === selectedTenderId) || tenders[0] || ({} as Tender);
@@ -136,12 +150,29 @@ export default function App() {
     setBidders(updatedList);
   };
 
+  const handleLogout = () => {         
+    clearOfficer();
+    setIsAuthenticated(false);
+  };
+
+  if (!isAuthenticated) {
+    return <LoginView onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
+  if (!officer) {
+    return <OfficerSelectView onSelect={setOfficer} />;
+  }
+
+  if (!isDemoAccount) {                                    // ← naya
+    return <NonDemoAccountView userEmail={currentUser?.email} onLogout={handleLogout} />;
+  }
+
   if (isInitialLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-sm text-slate-500">Loading data from the backend…</div>
       </div>
-    );
+     );
   }
 
   if (loadError) {
@@ -174,6 +205,7 @@ export default function App() {
         onSelectTender={handleSelectTender}
         onSelectBidder={handleSelectBidder}
         onOpenGovernance={() => setIsGovernanceModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 w-full bg-slate-50">
@@ -270,5 +302,13 @@ export default function App() {
         onClose={() => setIsGovernanceModalOpen(false)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <OfficerProvider>
+      <AppContent />
+    </OfficerProvider>
   );
 }

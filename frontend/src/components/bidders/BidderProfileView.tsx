@@ -43,8 +43,7 @@ import { complianceService } from '../../services/complianceService';
 import { riskService } from '../../services/riskService';
 import { auditService } from '../../services/auditService';
 import { verificationService } from '../../services/verificationService';
-import { CURRENT_OFFICER } from '../../constants/officer';
-
+import { useCurrentOfficer } from '../../context/OfficerContext';
 interface BidderProfileViewProps {
   bidder: Bidder;
   tender: Tender;
@@ -62,6 +61,7 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
   onGenerateReport,
   onDecisionUpdated,
 }) => {
+  const CURRENT_OFFICER = useCurrentOfficer();
   const [activeTab, setActiveTab] = useState<
     | 'overview'
     | 'documents'

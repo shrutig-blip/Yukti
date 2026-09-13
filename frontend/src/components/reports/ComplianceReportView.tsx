@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Bidder, Tender, TenderRequirement, ContradictionItem, DocumentRecord  } from '../../types';
 import { complianceService } from '../../services/complianceService';
-import { CURRENT_OFFICER } from '../../constants/officer';
+import { useCurrentOfficer } from '../../context/OfficerContext';
 import { documentService } from '../../services/documentService';
 import { riskService } from '../../services/riskService';
 
@@ -33,6 +33,7 @@ export const ComplianceReportView: React.FC<ComplianceReportViewProps> = ({
   // getContradictions() now hits the real backend and is async — same
   // signature change (bidderId -> bidderId, tenderId) already applied in
   // BidderProfileView.tsx and ComplianceAnalysisView.tsx.
+  const CURRENT_OFFICER = useCurrentOfficer();
   const [contradictions, setContradictions] = useState<ContradictionItem[]>([]);
   const [isLoadingContradictions, setIsLoadingContradictions] = useState(true);
   const expiries = riskService.getExpiries(bidder.id);

@@ -1,0 +1,1 @@
+export const DEMO_ACCOUNT_EMAIL = 'officer@cpcl-demo.gov.in';

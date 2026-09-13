@@ -10,8 +10,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Bidder } from '../../types';
-import { CURRENT_OFFICER } from '../../constants/officer';
-
+import { useCurrentOfficer } from '../../context/OfficerContext';
 interface ClarificationGeneratorModalProps {
   bidder: Bidder;
   isOpen: boolean;
@@ -25,8 +24,8 @@ export const ClarificationGeneratorModal: React.FC<ClarificationGeneratorModalPr
   onClose,
   onSendClarification,
 }) => {
+  const CURRENT_OFFICER = useCurrentOfficer();
   if (!isOpen) return null;
-
   const defaultLetter = `REF: CPCL/PROC/2026/047/CLR-01
 DATE: 09 September 2026
 

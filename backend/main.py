@@ -1,9 +1,14 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import shutil, tempfile, os
 import data_loader
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
 from data_loader import verify_certificate_against_records
+from auth import (
+    RegisterRequest, LoginRequest, TokenResponse, UserOut,
+    get_user_by_email, create_user, verify_password, create_access_token,
+    get_current_user, to_user_out,
+)
 
 app = FastAPI()
 
@@ -84,6 +89,10 @@ def read_bidder_credentials(bidder_id: str):
 def get_recent_activity(limit: int = 10):
     return data_loader.get_recent_verification_activity(limit=limit)
 
+@app.get("/auth/me", response_model=UserOut)
+def me(current_user: dict = Depends(get_current_user)):
+    return to_user_out(current_user)
+
 @app.post("/verify/{bidder_id}/certificate")
 async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
@@ -105,3 +114,18 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
         "extracted": extracted,
         "verification": verification,
     }
+@app.post("/auth/register", response_model=UserOut, status_code=201)
+def register(payload: RegisterRequest):
+    if get_user_by_email(payload.email):
+        raise HTTPException(status_code=409, detail="User already exists")
+    user = create_user(payload.name, payload.email, payload.password)
+    return to_user_out(user)
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login(payload: LoginRequest):
+    user = get_user_by_email(payload.email)
+    if user is None or not verify_password(payload.password, user["password"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_access_token(user)
+    return TokenResponse(message="Login successful", token=token, user=to_user_out(user))
