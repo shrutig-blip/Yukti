@@ -52,10 +52,14 @@ export function apiPostForm<T>(path: string, formData: FormData): Promise<T> {
   return request<T>(path, { method: 'POST', body: formData });
 }
 
-export function apiPost<T>(path: string, body: unknown): Promise<T> {
+export function apiPostJson<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
+
+// Alias kept so existing callers (authService.ts) that import apiPost
+// keep working without changes — both names call the same implementation.
+export const apiPost = apiPostJson;

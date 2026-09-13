@@ -1,53 +1,73 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Copy,
   Check,
   Send,
   X,
-  FileText,
   Mail,
   AlertTriangle,
   Info,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
-import { Bidder } from '../../types';
+import { Bidder, ContradictionItem } from '../../types';
 import { useCurrentOfficer } from '../../context/OfficerContext';
+import { letterService } from '../../services/letterService';
+import { OfficerProfile } from '../../constants/officer';
+
 interface ClarificationGeneratorModalProps {
   bidder: Bidder;
   isOpen: boolean;
   onClose: () => void;
+  contradictions: ContradictionItem[];
+  tender: { id: string; title: string };
   onSendClarification: (clarificationText: string, reason: string) => void;
 }
 
-export const ClarificationGeneratorModal: React.FC<ClarificationGeneratorModalProps> = ({
-  bidder,
-  isOpen,
-  onClose,
-  onSendClarification,
-}) => {
-  const CURRENT_OFFICER = useCurrentOfficer();
-  if (!isOpen) return null;
-  const defaultLetter = `REF: CPCL/PROC/2026/047/CLR-01
-DATE: 09 September 2026
+/**
+ * Deterministic FALLBACK letter — used only if the AI call fails (no
+ * internet, no API key, backend down). Not the primary path anymore, but
+ * kept so a demo never breaks. Built the same way as before: one paragraph
+ * per real contradiction, no invented facts.
+ */
+function buildFallbackLetterBody(
+  bidder: Bidder,
+  tender: { id: string; title: string },
+  contradictions: ContradictionItem[],
+  officer: OfficerProfile
+): string {
+  const todayStr = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const paragraphs = contradictions
+    .map((c, idx) => {
+      const sourceLines = c.sources.map((s) => `   - ${s.source}: ${s.value}`).join('\n');
+      return `${idx + 1}. ${c.field.toUpperCase()}:
+${c.assessment}
+${sourceLines ? `${sourceLines}\n` : ''}${c.recommendation}`;
+    })
+    .join('\n\n');
+
+  return `REF: CPCL/PROC/${tender.id}/CLR-01
+DATE: ${todayStr}
 
 TO:
 The Authorized Signatory,
-M/s ABC Engineering Pvt. Ltd.,
-Plot 42, Bhosari Industrial Area, MIDC, Pune - 411026, Maharashtra.
+M/s ${bidder.name},
+${bidder.registeredAddress ? `${bidder.registeredAddress}.` : '(Address on file with the department).'}
 
-SUBJECT: Request for Clarification — Technical & Financial Eligibility for Tender No. CPCL/PROC/2026/047 (Supply of Heavy-Duty API 610 Centrifugal Process Pumps).
+SUBJECT: Request for Clarification — Compliance & Eligibility for Tender No. ${tender.id}${
+    tender.title ? ` (${tender.title})` : ''
+  }.
 
 Dear Sir / Madam,
 
-With reference to your bid submitted against Tender No. CPCL/PROC/2026/047, during initial techno-commercial compliance verification by the Tender Evaluation Committee, the following discrepancies and observations have been noted:
+With reference to your bid submitted against Tender No. ${tender.id}, during compliance verification by the Tender Evaluation Committee, the following discrepancies and observations have been noted:
 
-1. ANNUAL FINANCIAL TURNOVER RECONCILIATION:
-In your submitted Bid Form TECH-4, an Annual Turnover of ₹18.40 Cr has been declared for FY 2024-25. However, the accompanying Audited Profit & Loss Statement (Schedule 18) and MCA-21 filings indicate Revenue from Operations of ₹12.72 Cr. You are requested to furnish a Statutory Auditor reconciliation certificate bearing a valid UDIN explaining this variation.
-
-2. OEM AUTHORIZATION VALIDITY EXTENSION:
-The OEM Manufacturer Authorization Form (MAF) from M/s Kirloskar Flow Technologies Ltd. submitted with your bid reflects an expiry date of 28 September 2026, which is prior to the tender bid validity period (30 September 2026). You are requested to furnish an extended OEM Authorization letter valid through at least 31 December 2026.
-
-3. STATUTORY EPFO RECEIPT:
-Please provide the Electronic Challan Return (ECR) receipt for the statutory EPFO contribution for the month of July 2026.
+${paragraphs}
 
 Please submit your formal written clarification with supporting notarized documents within seven (7) working days of receipt of this communication, failing which your bid shall be evaluated based on the documents currently on record.
 
@@ -55,13 +75,62 @@ Yours faithfully,
 
 For Chennai Petroleum Corporation Limited (CPCL),
 
-${CURRENT_OFFICER.name}
-${CURRENT_OFFICER.fullDesignation}
+${officer.name}
+${officer.fullDesignation}
 Mechanical Procurement Division, Manali Refinery, Chennai.`;
+}
 
-  const [letterBody, setLetterBody] = useState(defaultLetter);
+export const ClarificationGeneratorModal: React.FC<ClarificationGeneratorModalProps> = ({
+  bidder,
+  isOpen,
+  onClose,
+  contradictions,
+  tender,
+  onSendClarification,
+}) => {
+  const officer = useCurrentOfficer();
+  const [letterBody, setLetterBody] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [usedFallback, setUsedFallback] = useState(false);
+
+  // Ask the AI to draft the letter whenever the modal opens for a
+  // (possibly new) bidder/tender/contradiction set. Falls back to the
+  // deterministic template if the AI call fails for any reason.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (contradictions.length === 0) {
+      setLetterBody('');
+      return;
+    }
+    let cancelled = false;
+    setIsGenerating(true);
+    setUsedFallback(false);
+    letterService
+      .generateClarificationLetter(bidder, tender, contradictions)
+      .then((text) => {
+        if (!cancelled) setLetterBody(text);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLetterBody(buildFallbackLetterBody(bidder, tender, contradictions, officer));
+          setUsedFallback(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsGenerating(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, bidder.id, tender.id, contradictions, officer]);
+
+  if (!isOpen) return null;
+
+  const criticalCount = contradictions.filter((c) => c.severity === 'CRITICAL').length;
+  const otherCount = contradictions.length - criticalCount;
+  const hasNothingToFlag = contradictions.length === 0;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(letterBody);
@@ -72,7 +141,9 @@ Mechanical Procurement Division, Manali Refinery, Chennai.`;
   const handleApproveAndSend = () => {
     onSendClarification(
       letterBody,
-      'Formal clarification request issued for Turnover discrepancy & OEM validity extension.'
+      `Formal clarification request issued for ${contradictions.length} identified discrepanc${
+        contradictions.length === 1 ? 'y' : 'ies'
+      }.`
     );
     onClose();
   };
@@ -88,10 +159,10 @@ Mechanical Procurement Division, Manali Refinery, Chennai.`;
             </div>
             <div>
               <h3 className="text-sm font-bold tracking-tight text-white">
-                Statutory Clarification Notice Generator
+                AI Clarification Notice Generator
               </h3>
               <p className="text-[11px] text-teal-200">
-                Drafts formal inquiry based on detected contradictions & tender criteria
+                LLM drafts a formal inquiry from detected contradictions & tender criteria
               </p>
             </div>
           </div>
@@ -111,10 +182,61 @@ Mechanical Procurement Division, Manali Refinery, Chennai.`;
               <AlertTriangle className="w-4 h-4 text-amber-700" />
               <span>Target Bidder: {bidder.name} ({bidder.id})</span>
             </div>
-            <p className="text-[11px] text-amber-800">
-              Automated analysis drafted this communication addressing <strong>2 critical discrepancies</strong> (Turnover mismatch & OEM early expiry) and <strong>1 pending submission</strong> (July EPFO).
-            </p>
+            {hasNothingToFlag ? (
+              <p className="text-[11px] text-amber-800">
+                No active discrepancies were found for this bidder against Tender {tender.id}. A
+                clarification notice is not required at this time.
+              </p>
+            ) : (
+              <p className="text-[11px] text-amber-800">
+                Automated analysis flagged{' '}
+                <strong>
+                  {criticalCount} critical discrepanc{criticalCount === 1 ? 'y' : 'ies'}
+                </strong>
+                {otherCount > 0 && (
+                  <>
+                    {' '}
+                    and{' '}
+                    <strong>
+                      {otherCount} other flagged item{otherCount === 1 ? '' : 's'}
+                    </strong>
+                  </>
+                )}
+                . The letter below is being drafted from these real findings.
+              </p>
+            )}
           </div>
+
+          {/* AI status banner */}
+          {!hasNothingToFlag && (
+            <div
+              className={`p-2.5 rounded-md text-[11px] flex items-center space-x-2 border ${
+                usedFallback
+                  ? 'bg-orange-50 border-orange-200 text-orange-800'
+                  : 'bg-teal-50 border-teal-200 text-teal-800'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Drafting letter with AI from the detected discrepancies…</span>
+                </>
+              ) : usedFallback ? (
+                <>
+                  <Info className="w-3.5 h-3.5" />
+                  <span>
+                    AI drafting was unavailable — showing a template-based letter generated from
+                    the same real data instead.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Drafted by AI from real detected discrepancies.</span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Letter editor / preview */}
           <div>
@@ -141,16 +263,18 @@ Mechanical Procurement Division, Manali Refinery, Chennai.`;
 
             <textarea
               rows={14}
-              value={letterBody}
+              value={isGenerating ? 'Generating…' : letterBody}
               onChange={(e) => setLetterBody(e.target.value)}
-              className="w-full p-3 font-mono text-xs text-slate-800 bg-slate-50 border border-slate-300 rounded-md focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#0F766E] leading-relaxed"
+              disabled={isGenerating}
+              className="w-full p-3 font-mono text-xs text-slate-800 bg-slate-50 border border-slate-300 rounded-md focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#0F766E] leading-relaxed disabled:text-slate-400"
             />
           </div>
 
           <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-600 flex items-start space-x-2">
             <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
             <span>
-              Approving this clarification will log an entry in the immutable audit trail and transition the bidder status to <strong>Clarification Requested</strong>.
+              Approving this clarification will log an entry in the audit trail and transition the
+              bidder status to <strong>Clarification Requested</strong>.
             </span>
           </div>
         </div>
@@ -165,7 +289,8 @@ Mechanical Procurement Division, Manali Refinery, Chennai.`;
           </button>
           <button
             onClick={handleApproveAndSend}
-            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-md bg-[#0F766E] hover:bg-teal-800 text-white text-xs font-semibold shadow-xs transition-colors"
+            disabled={hasNothingToFlag || isGenerating}
+            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-md bg-[#0F766E] hover:bg-teal-800 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#0F766E]"
           >
             <Send className="w-3.5 h-3.5" />
             <span>Approve & Issue Clarification</span>

@@ -36,7 +36,18 @@ export const ComplianceReportView: React.FC<ComplianceReportViewProps> = ({
   const CURRENT_OFFICER = useCurrentOfficer();
   const [contradictions, setContradictions] = useState<ContradictionItem[]>([]);
   const [isLoadingContradictions, setIsLoadingContradictions] = useState(true);
-  const expiries = riskService.getExpiries(bidder.id);
+  // after
+const [expiries, setExpiries] = useState<ExpiryItem[]>([]);
+useEffect(() => {
+  if (!bidder.id) return;
+  let cancelled = false;
+  riskService.getExpiries(bidder.id).then((e) => {
+    if (!cancelled) setExpiries(e);
+  });
+  return () => {
+    cancelled = true;
+  };
+}, [bidder.id]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   useEffect(() => {
     if (!bidder.id || !tender.id) return;

@@ -1,4 +1,5 @@
-import { mockRiskFactors, mockExpiries, mockRedFlagTimeline } from '../data/mockData';
+import { apiGet } from './apiClient';
+import { mockRedFlagTimeline } from '../data/mockData';
 import { RiskFactor, ExpiryItem, RedFlagHistoryItem, SeverityLevel } from '../types';
 
 export interface SimulationParams {
@@ -10,28 +11,48 @@ export interface SimulationParams {
 }
 
 class RiskService {
-  private riskFactors: RiskFactor[] = [...mockRiskFactors];
-  private expiries: ExpiryItem[] = [...mockExpiries];
-  private timeline: RedFlagHistoryItem[] = [...mockRedFlagTimeline];
+  private riskFactorsCache = new Map<string, RiskFactor[]>();
+  private expiriesCache = new Map<string, ExpiryItem[]>();
 
-  public getRiskFactors(bidderId: string): RiskFactor[] {
-    return this.riskFactors;
+  /**
+   * Real, per-bidder risk factors from GET /bidder/{id}/risk-factors.
+   * Pass tenderId when you have one in context (Bidder Profile, Report) —
+   * without it, tender-specific eligibility failures are omitted (the
+   * backend can't check eligibility against a tender it wasn't told about).
+   */
+  public async getRiskFactors(bidderId: string, tenderId?: string): Promise<RiskFactor[]> {
+    const key = `${bidderId}::${tenderId ?? ''}`;
+    if (this.riskFactorsCache.has(key)) return this.riskFactorsCache.get(key)!;
+    const query = tenderId ? `?tender_id=${encodeURIComponent(tenderId)}` : '';
+    const factors = await apiGet<RiskFactor[]>(`/bidder/${bidderId}/risk-factors${query}`);
+    this.riskFactorsCache.set(key, factors);
+    return factors;
   }
 
-  public getExpiries(bidderId: string): ExpiryItem[] {
-    return this.expiries;
-  }
-
-  public getTimeline(bidderId: string): RedFlagHistoryItem[] {
-    return this.timeline;
+  /** Real, per-bidder expiries from GET /bidder/{id}/expiries. Only OEM
+   * authorization currently has a trackable expiry date in the dataset —
+   * non-OEM bidders will genuinely get an empty array, not an error. */
+  public async getExpiries(bidderId: string): Promise<ExpiryItem[]> {
+    if (this.expiriesCache.has(bidderId)) return this.expiriesCache.get(bidderId)!;
+    const items = await apiGet<ExpiryItem[]>(`/bidder/${bidderId}/expiries`);
+    this.expiriesCache.set(bidderId, items);
+    return items;
   }
 
   /**
-   * Adaptive Risk Engine:
-   * Decoupled from linear 100 - Compliance score.
-   * If even one CRITICAL risk factor exists (e.g. debarment or severe turnover inflation),
-   * risk escalates immediately to HIGH or CRITICAL regardless of compliance score.
+   * STILL MOCK — same array for every bidder, unlike the two methods above.
+   * There is no persisted historical-event table in the backend (no record
+   * of "what happened on what date" beyond current-state facts), so there
+   * is nothing real to itemize a chronological timeline from. Fixing this
+   * properly needs an events table (e.g. logged the first time a check
+   * flips from pass to fail), not a client-side derivation — flagged
+   * instead of quietly faking dates.
    */
+  public async getTimeline(bidderId: string): Promise<RedFlagHistoryItem[]> {
+  return apiGet<RedFlagHistoryItem[]>(`/bidder/${bidderId}/timeline`);
+}
+
+  /** Unchanged — pure aggregator, works the same whether factors[] is real or mock. */
   public evaluateRisk(factors: RiskFactor[]): {
     overallLevel: SeverityLevel;
     criticalCount: number;
@@ -49,7 +70,7 @@ class RiskService {
     let rationale = 'All evaluated statutory and technical parameters align with CPCL procurement benchmarks.';
 
     if (criticalCount > 0) {
-      overallLevel = 'HIGH'; // In our demo showcase, turnover mismatch makes it HIGH/MEDIUM requiring review
+      overallLevel = 'HIGH';
       rationale = `${criticalCount} critical discrepancy detected (turnover declaration mismatch). High integrity risk requiring officer reconciliation.`;
     } else if (highCount > 0) {
       overallLevel = 'MEDIUM';
@@ -59,21 +80,10 @@ class RiskService {
       rationale = `${mediumCount} pending statutory submissions requiring confirmation.`;
     }
 
-    return {
-      overallLevel,
-      criticalCount,
-      highCount,
-      mediumCount,
-      lowCount,
-      rationale,
-    };
+    return { overallLevel, criticalCount, highCount, mediumCount, lowCount, rationale };
   }
 
-  /**
-   * Interactive What-If Scenario Simulator:
-   * Allows the Procurement Officer to toggle regulatory and tender stipulations
-   * and view projected score & risk profile without altering official records.
-   */
+  /** Unchanged — deliberately a synthetic what-if calculator, not a real-data feature. */
   public simulateScenario(baseCompliance: number, params: SimulationParams): {
     projectedCompliance: number;
     projectedRisk: SeverityLevel;
@@ -92,7 +102,6 @@ class RiskService {
     }
 
     if (params.oemMandatory) {
-      // OEM expiry remains high risk
       changes.push('OEM Authorization strictly mandatory; early expiry caps maximum qualification rating');
     } else {
       score += 5;
@@ -115,7 +124,6 @@ class RiskService {
 
     score = Math.min(99, Math.max(45, score));
 
-    // Determine projected risk
     if (params.financialDiscrepancyCritical && params.oemMandatory) {
       risk = 'HIGH';
     } else if (!params.financialDiscrepancyCritical && !params.oemMandatory) {

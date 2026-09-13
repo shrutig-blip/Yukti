@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   History,
   Search,
@@ -21,7 +21,17 @@ interface AuditTrailViewProps {
 }
 
 export const AuditTrailView: React.FC<AuditTrailViewProps> = ({ onSelectBidder }) => {
-  const [records, setRecords] = useState<AuditRecord[]>(auditService.getRecords());
+  // after
+const [records, setRecords] = useState<AuditRecord[]>(auditService.getRecords());
+useEffect(() => {
+  let cancelled = false;
+  auditService.getRecords().then((r) => {
+    if (!cancelled) setRecords(r);
+  });
+  return () => {
+    cancelled = true;
+  };
+}, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [resultFilter, setResultFilter] = useState('ALL');
   const [roleFilter, setRoleFilter] = useState('ALL');
@@ -41,7 +51,7 @@ export const AuditTrailView: React.FC<AuditTrailViewProps> = ({ onSelectBidder }
   });
 
   const handleExportCSV = () => {
-    const csv = auditService.exportAuditLogAsCSV();
+    const csv = auditService.exportAuditLogAsCSV(records);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
