@@ -189,6 +189,13 @@ def login(payload: LoginRequest):
     token = create_access_token(user)
     return TokenResponse(message="Login successful", token=token, user=to_user_out(user))
 
+@app.get("/tender/{tender_id}/collusion-signals")
+def read_collusion_signals(tender_id: str):
+    result = data_loader.get_collusion_signals(tender_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No bids found for this tender")
+    return result
+
 @app.get("/bidder/{bidder_id}/timeline")
 def read_timeline(bidder_id: str):
     result = data_loader.get_timeline(bidder_id)

@@ -1,3 +1,5 @@
+import re
+from itertools import combinations
 import os
 import pandas as pd
 
@@ -1011,3 +1013,123 @@ def update_tender_requirement(tender_id: str, updates: dict):
 
     _persist_tender_criteria()
     return tender_criteria_df.loc[mask].iloc[0].to_dict()
+
+
+# ---------------------------------------------------------------------------
+# Cartel / collusion signal detection (per-tender)
+# ---------------------------------------------------------------------------
+# HONESTY NOTE: bidders.csv has no director names, registered address, or
+# bank-account data — so this is NOT the full PAN/GSTN/MCA21-director/
+# address/bank identity graph described in the problem statement. That would
+# need those columns added to the dataset first. What IS implemented here
+# uses only real existing columns and checks two signals that are genuinely
+# present in this dataset (verified against real rows, not synthetic):
+#
+#   1. Two bidders in the SAME tender sharing an IDENTICAL registration_date
+#      — a well-documented bid-rigging / shell-company pattern (batches of
+#      shell entities incorporated on the same day, then "competing"
+#      independently on the same tender).
+#   2. Company names that match once legal-entity suffixes (Pvt Ltd, LLP,
+#      & Co, etc.) are stripped — catches likely-related entities bidding
+#      as if unconnected.
+#
+# Same state is deliberately NOT treated as a flag on its own — most bidders
+# sharing a state is normal and would be pure noise — it's only attached as
+# context on an already-flagged pair.
+
+_COMPANY_SUFFIX_RE = re.compile(
+    r"\b(private limited|pvt\.?\s*ltd\.?|limited|ltd\.?|llp|"
+    r"& co\.?|and co\.?|enterprises|industries|corporation|corp\.?|inc\.?|co\.?)\b",
+    re.IGNORECASE,
+)
+
+
+def _normalize_company_name(name: str) -> str:
+    cleaned = _COMPANY_SUFFIX_RE.sub("", str(name).lower())
+    cleaned = re.sub(r"[^a-z0-9\s]", "", cleaned)
+    return " ".join(cleaned.split())
+
+
+def get_collusion_signals(tender_id: str):
+    """Cross-bidder collusion signals for ONE tender. Returns None if the
+    tender has no bids at all."""
+    bidder_ids = tender_bids_df[tender_bids_df["tender_id"] == tender_id]["bidder_id"].tolist()
+    if not bidder_ids:
+        return None
+
+    cohort = bidders_df[bidders_df["bidder_id"].isin(bidder_ids)].copy()
+    cohort["_normalized_name"] = cohort["company_name"].apply(_normalize_company_name)
+
+    nodes = [
+        {
+            "bidder_id": row["bidder_id"],
+            "company_name": row["company_name"],
+            "state": row["state"],
+        }
+        for _, row in cohort.iterrows()
+    ]
+
+    severity_rank = {"MEDIUM": 0, "HIGH": 1}
+    edges = []
+
+    for a, b in combinations(cohort.itertuples(index=False), 2):
+        reasons = []
+
+        if pd.notna(a.registration_date) and a.registration_date == b.registration_date:
+            reasons.append({
+                "signal": "same_registration_date",
+                "severity": "HIGH",
+                "detail": f"Both bidders were registered on {a.registration_date}",
+            })
+
+        if a._normalized_name and a._normalized_name == b._normalized_name:
+            reasons.append({
+                "signal": "similar_company_name",
+                "severity": "MEDIUM",
+                "detail": f"Core company name matches after stripping legal suffixes: \"{a._normalized_name}\"",
+            })
+
+        if not reasons:
+            continue
+
+        edges.append({
+            "bidder_a": a.bidder_id,
+            "bidder_b": b.bidder_id,
+            "same_state": bool(a.state == b.state),
+            "reasons": reasons,
+            "severity": max(reasons, key=lambda r: severity_rank[r["severity"]])["severity"],
+        })
+
+    # Union-find so 3+ mutually-linked bidders surface as ONE group instead
+    # of N separate pairs — a ring of shell companies should read as a ring.
+    parent = {n["bidder_id"]: n["bidder_id"] for n in nodes}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x, y):
+        parent[find(x)] = find(y)
+
+    for e in edges:
+        union(e["bidder_a"], e["bidder_b"])
+
+    clusters: dict = {}
+    for n in nodes:
+        root = find(n["bidder_id"])
+        clusters.setdefault(root, []).append(n["bidder_id"])
+
+    flagged_clusters = [
+        {"bidder_ids": members, "size": len(members)}
+        for members in clusters.values() if len(members) > 1
+    ]
+
+    return {
+        "tender_id": tender_id,
+        "bidder_count": len(nodes),
+        "nodes": nodes,
+        "edges": edges,
+        "flagged_clusters": flagged_clusters,
+    }
