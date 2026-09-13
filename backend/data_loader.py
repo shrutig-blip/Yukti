@@ -5,7 +5,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "..","data", "data")
 
 bidders_df = pd.read_csv(os.path.join(DATA_DIR, "bidders.csv"))
-tender_criteria_df = pd.read_csv(os.path.join(DATA_DIR, "tender_criteria.csv"))
+TENDER_CRITERIA_PATH = os.path.join(DATA_DIR, "tender_criteria.csv")
+tender_criteria_df = pd.read_csv(TENDER_CRITERIA_PATH)
 tender_bids_df = pd.read_csv(os.path.join(DATA_DIR, "tender_bids.csv"))
 gst_df = pd.read_csv(os.path.join(DATA_DIR, "gst_portal.csv"))
 pan_df = pd.read_csv(os.path.join(DATA_DIR, "pan_portal.csv"))
@@ -18,6 +19,23 @@ if not os.path.exists(AUDIT_EVENTS_PATH):
     pd.DataFrame(columns=_AUDIT_EVENT_COLUMNS).to_csv(AUDIT_EVENTS_PATH, index=False)
 
 audit_events_df = pd.read_csv(AUDIT_EVENTS_PATH)
+
+# Officer Qualify/Disqualify decisions — previously only held in frontend React
+# state (BidderProfileView.handleDecisionRecorded), so a page refresh lost it.
+# Persisted the same way audit_events.csv already is: an append-only CSV, kept
+# in sync with an in-memory DataFrame. Every decision a bidder ever received is
+# kept (not overwritten), and "the current decision" is simply the latest row
+# for that bidder_id — same idea as get_timeline() reading audit_events_df.
+DECISIONS_PATH = os.path.join(DATA_DIR, "officer_decisions.csv")
+_DECISION_COLUMNS = [
+    "id", "bidder_id", "decision", "officer_name", "officer_designation",
+    "timestamp", "comments", "conditions_or_stipulations",
+]
+
+if not os.path.exists(DECISIONS_PATH):
+    pd.DataFrame(columns=_DECISION_COLUMNS).to_csv(DECISIONS_PATH, index=False)
+
+officer_decisions_df = pd.read_csv(DECISIONS_PATH)
 
 # Previously loaded nowhere despite being real, provided data files —
 # both are now used below (startup_nsic_df fixes a real eligibility bug,
@@ -337,6 +355,46 @@ def verify_bidder_credentials(bidder_id: str):
             "check": "udyam",
             "passed": bool(passed),
             "status": u["status"]
+        })
+
+    # --- NSIC check ---
+    # GROUNDING: NSIC (National Small Industries Corporation) single-point
+    # registration is a real MSME facility under GeM/GFR procurement — it
+    # grants EMD/tender-fee exemption and price-preference eligibility, but
+    # (unlike GST/PAN/Udyam active-status) it is VOLUNTARY, not a mandatory
+    # statutory precondition to bid. The data (startup_nsic_portal.csv ->
+    # nsic_registered / nsic_number) was already being loaded (startup_nsic_df,
+    # used above for the startup exemption in check_compliance) but this
+    # column pair was never read anywhere, so the check silently never ran.
+    #
+    # Only 19/150 bidders in the dataset are nsic_registered=True, so gating
+    # overall_eligible on it (like GST/PAN/Udyam) would flip the other 131 to
+    # ineligible for something that isn't actually a bar to bidding — that
+    # would be a real behaviour change, not a bug fix. So this is reported as
+    # its own check (passed=True always) surfacing registration status/number
+    # as information for the officer, the same way the EPFO/ESIC block above
+    # reports "not applicable" as a pass rather than a fail. If NSIC
+    # registration should actually gate eligibility for certain tenders,
+    # that's a product decision to make explicitly, not something to encode
+    # silently here — flip `"passed": registered` below if that's wanted.
+    nsic_row = startup_nsic_df[startup_nsic_df["bidder_id"] == bidder_id]
+    if nsic_row.empty:
+        checks.append({
+            "check": "nsic",
+            "passed": True,
+            "nsic_registered": False,
+            "detail": "No NSIC record found"
+        })
+    else:
+        n = nsic_row.iloc[0]
+        registered = bool(n["nsic_registered"])
+        checks.append({
+            "check": "nsic",
+            "passed": True,
+            "nsic_registered": registered,
+            "nsic_number": (n["nsic_number"] if registered and pd.notna(n["nsic_number"]) else None),
+            "detail": "NSIC single-point registration on record" if registered
+                      else "Not NSIC-registered (voluntary scheme — does not affect eligibility)"
         })
 
     # --- Blacklist check ---
@@ -850,3 +908,106 @@ def get_timeline(bidder_id: str):
 
     events.sort(key=lambda e: e["date"])
     return events
+
+
+# ---------------------------------------------------------------------------
+# Officer decision persistence (Qualify / Disqualify / etc.)
+# ---------------------------------------------------------------------------
+# Same append-only CSV + in-memory DataFrame pattern as append_audit_event()
+# above. Every decision ever recorded for a bidder is kept (a history, not
+# just a single mutable field) — get_officer_decision() returns the latest
+# one, which is what the frontend should treat as "the current decision".
+
+def record_officer_decision(bidder_id: str, decision: str, officer_name: str,
+                             officer_designation: str, comments: str = None,
+                             conditions_or_stipulations: str = None):
+    global officer_decisions_df
+    new_id = f"DEC-{len(officer_decisions_df) + 1000}"
+    row = {
+        "id": new_id,
+        "bidder_id": bidder_id,
+        "decision": decision,
+        "officer_name": officer_name,
+        "officer_designation": officer_designation,
+        "timestamp": datetime.now().isoformat(),
+        "comments": comments,
+        "conditions_or_stipulations": conditions_or_stipulations,
+    }
+    officer_decisions_df = pd.concat([officer_decisions_df, pd.DataFrame([row])], ignore_index=True)
+    pd.DataFrame([row]).to_csv(DECISIONS_PATH, mode="a", header=False, index=False)
+    return _clean_nan(row)
+
+
+def get_officer_decision(bidder_id: str):
+    """Latest recorded decision for this bidder, or None if none exists yet."""
+    rows = officer_decisions_df[officer_decisions_df["bidder_id"] == bidder_id]
+    if rows.empty:
+        return None
+    latest = rows.sort_values("timestamp").iloc[-1]
+    return _clean_nan(latest.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Tender create / requirement edit
+# ---------------------------------------------------------------------------
+# tender_criteria.csv is small and fully loaded into tender_criteria_df at
+# startup (same as every other *_df in this file), so — unlike the
+# append-only audit/decision logs above — an edit here means updating a row
+# in place and rewriting the whole CSV, which is the simplest correct way to
+# keep a small reference table like this consistent on disk.
+
+_TENDER_FIELDS = [
+    "tender_title", "category_allowed", "min_turnover_cr",
+    "min_local_content_percent", "msme_only", "startup_relaxation",
+]
+
+
+def _persist_tender_criteria():
+    tender_criteria_df.to_csv(TENDER_CRITERIA_PATH, index=False)
+
+
+def _next_tender_id():
+    existing = tender_criteria_df["tender_id"].tolist()
+    n = len(existing) + 1
+    candidate = f"TND{n:03d}"
+    while candidate in existing:
+        n += 1
+        candidate = f"TND{n:03d}"
+    return candidate
+
+
+def create_tender(tender_data: dict):
+    """Create a new tender. tender_data may include an explicit tender_id;
+    otherwise the next TND0xx id is auto-assigned. Returns the created row,
+    or None if the given tender_id already exists."""
+    global tender_criteria_df
+
+    tender_id = tender_data.get("tender_id") or _next_tender_id()
+    if tender_id in tender_criteria_df["tender_id"].tolist():
+        return None
+
+    row = {"tender_id": tender_id}
+    for field in _TENDER_FIELDS:
+        row[field] = tender_data.get(field)
+
+    tender_criteria_df = pd.concat([tender_criteria_df, pd.DataFrame([row])], ignore_index=True)
+    _persist_tender_criteria()
+    return row
+
+
+def update_tender_requirement(tender_id: str, updates: dict):
+    """Partial update of a tender's eligibility requirement fields. Only keys
+    present (and not None) in `updates` are changed. Returns the updated row,
+    or None if the tender doesn't exist."""
+    global tender_criteria_df
+
+    mask = tender_criteria_df["tender_id"] == tender_id
+    if not mask.any():
+        return None
+
+    for field in _TENDER_FIELDS:
+        if field in updates and updates[field] is not None:
+            tender_criteria_df.loc[mask, field] = updates[field]
+
+    _persist_tender_criteria()
+    return tender_criteria_df.loc[mask].iloc[0].to_dict()
