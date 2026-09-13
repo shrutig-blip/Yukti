@@ -1,5 +1,4 @@
-import { apiGet } from './apiClient';
-import { mockAuditRecords } from '../data/mockData';
+import { apiGet, apiPostJson } from './apiClient';
 import { AuditRecord } from '../types';
 
 /**
@@ -63,43 +62,56 @@ function mapRawActivity(raw: RawActivityItem): AuditRecord {
 }
 
 class AuditService {
-  private records: AuditRecord[] = [...mockAuditRecords];
-
-  public getRecords(bidderId?: string): AuditRecord[] {
-    if (bidderId) {
-      return this.records.filter((r) => !r.bidderId || r.bidderId === bidderId);
-    }
-    return this.records;
+  /**
+   * bidderId given -> GET /bidder/{id}/audit-log (real, single-bidder).
+   * bidderId omitted -> GET /audit/recent-activity (real, across all
+   * bidders — used by the global Audit Trail view).
+   */
+  public async getRecords(bidderId?: string): Promise<AuditRecord[]> {
+    const path = bidderId ? `/bidder/${bidderId}/audit-log` : '/audit/recent-activity?limit=50';
+    return apiGet<AuditRecord[]>(path);
   }
 
   /**
    * Real backend-driven activity feed (used by the Dashboard's "Recent
-   * Verification Activity" panel). Separate from getRecords()/this.records
-   * on purpose — this.records stays mock/manual-log data as before;
-   * nothing here mutates it.
+   * Verification Activity" panel). Separate from getRecords() on purpose —
+   * this maps raw per-check results into the AuditRecord shape the
+   * dashboard expects.
    */
   public async getRecentActivity(limit: number = 10): Promise<AuditRecord[]> {
     const raw = await apiGet<RawActivityItem[]>(`/audit/recent-activity?limit=${limit}`);
     return raw.map(mapRawActivity);
   }
 
-  public logEvent(event: Omit<AuditRecord, 'id' | 'timestamp'>): AuditRecord {
-    const newRecord: AuditRecord = {
-      id: `AUD-${Math.floor(8800 + Math.random() * 1000)}`,
-      timestamp: new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' IST',
-      ...event,
-    };
-    this.records.unshift(newRecord);
-    return newRecord;
+  /**
+   * Officer-triggered actions (decisions, manual re-verification, sent
+   * clarifications) are persisted to the real backend audit log for that
+   * bidder. Fire-and-forget: none of the current call sites use the return
+   * value, and a slow/failed log write shouldn't block the officer's
+   * actual action (decision, clarification, re-verification).
+   */
+  public logEvent(event: Omit<AuditRecord, 'id' | 'timestamp'>): void {
+    if (!event.bidderId) {
+      console.warn('auditService.logEvent called without bidderId — cannot persist without one.');
+      return;
+    }
+    apiPostJson(`/bidder/${event.bidderId}/audit-log`, {
+      actor: event.actor,
+      role: event.role,
+      action: event.action,
+      source: event.source,
+      result: event.result,
+      evidence_ref: event.evidenceRef,
+      comments: event.comments,
+    }).catch((err) => console.warn('Failed to persist audit event:', err));
   }
 
-  public exportAuditLogAsCSV(): string {
+  /** Now takes the records to export explicitly — data lives in component
+   * state (fetched async) rather than a synchronous in-memory array on the
+   * service, so callers pass whatever list they currently have on screen. */
+  public exportAuditLogAsCSV(records: AuditRecord[]): string {
     const header = ['Audit ID', 'Timestamp', 'Actor', 'Role', 'Action', 'Source', 'Result', 'Evidence Ref', 'Comments'];
-    const rows = this.records.map((r) => [
+    const rows = records.map((r) => [
       r.id,
       r.timestamp,
       r.actor,
@@ -110,7 +122,6 @@ class AuditService {
       `"${r.evidenceRef || ''}"`,
       `"${(r.comments || '').replace(/"/g, '""')}"`,
     ]);
-
     return [header.join(','), ...rows.map((row) => row.join(','))].join('\n');
   }
 }

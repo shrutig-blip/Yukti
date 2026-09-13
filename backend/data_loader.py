@@ -11,6 +11,14 @@ gst_df = pd.read_csv(os.path.join(DATA_DIR, "gst_portal.csv"))
 pan_df = pd.read_csv(os.path.join(DATA_DIR, "pan_portal.csv"))
 udyam_df = pd.read_csv(os.path.join(DATA_DIR, "udyam_portal.csv"))
 blacklist_df = pd.read_csv(os.path.join(DATA_DIR, "blacklist_registry.csv"))
+AUDIT_EVENTS_PATH = os.path.join(DATA_DIR, "audit_events.csv")
+_AUDIT_EVENT_COLUMNS = ["id", "bidder_id", "timestamp", "actor", "role", "action", "source", "result", "evidence_ref", "comments"]
+
+if not os.path.exists(AUDIT_EVENTS_PATH):
+    pd.DataFrame(columns=_AUDIT_EVENT_COLUMNS).to_csv(AUDIT_EVENTS_PATH, index=False)
+
+audit_events_df = pd.read_csv(AUDIT_EVENTS_PATH)
+
 # Previously loaded nowhere despite being real, provided data files —
 # both are now used below (startup_nsic_df fixes a real eligibility bug,
 # epfo_df adds a genuine additional statutory check). See the comments at
@@ -538,25 +546,307 @@ def get_recent_verification_activity(limit: int = 10):
     table backing this — "timestamp" reflects when the check was actually
     run (now), not a stored past event.
     """
+    # after
     activity = []
-    now = datetime.now().isoformat()
 
     for bidder_id in bidders_df["bidder_id"].tolist():
         bidder = get_bidder_by_id(bidder_id)
-        result = verify_bidder_credentials(bidder_id)
-        if result is None:
-            continue
-        for check in result["checks"]:
-            activity.append({
-                "bidder_id": bidder_id,
-                "bidder_name": bidder["company_name"],
-                "check_type": check["check"],
-                "passed": check["passed"],
-                "detail": _format_activity_detail(check),
-                "reference_id": f"VER-{check['check'].upper()}-{bidder_id}",
-                "timestamp": now,
-            })
+        activity.extend(_verification_activity_for_bidder(bidder_id, bidder["company_name"]))
 
     # Flagged/failed checks are more actionable for an officer — surface those first
     activity.sort(key=lambda a: a["passed"])
     return activity[:limit]
+
+# ---------------------------------------------------------------------------
+# Per-bidder risk factors, expiries, and audit log — real, itemized detail
+# ---------------------------------------------------------------------------
+# These back the frontend's Bidder Profile "Risk" and "Audit" tabs, which
+# previously read from 100%-mock arrays (riskService.ts / auditService.ts)
+# that ignored bidder_id entirely — riskService.getRiskFactors(bidderId), in
+# particular, returned the identical static list for every bidder.
+#
+# Severity/weight scale intentionally matches calculate_compliance_score()
+# above (CRITICAL=100, HIGH=75, MEDIUM=40) instead of inventing a new scale —
+# same worst-factor-wins convention, just itemized instead of aggregated.
+
+def get_risk_factors(bidder_id: str, tender_id: str = None):
+    """One entry per real flag currently active for this bidder. Returns []
+    (not None) for a clean bidder with no active flags — None only means
+    'bidder not found'."""
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+    statutory = verify_bidder_credentials(bidder_id)
+    if statutory is None:
+        return None
+
+    factors = []
+
+    # Blacklist / debarment — CRITICAL, absolute bar (see calculate_compliance_score doc)
+    blacklist_check = next((c for c in statutory["checks"] if c["check"] == "blacklist"), None)
+    if blacklist_check and not blacklist_check["passed"]:
+        factors.append({
+            "id": f"{bidder_id}-blacklist",
+            "name": "Blacklist / Debarment Match",
+            "severity": "CRITICAL",
+            "description": blacklist_check.get("reason") or "Active blacklist/debarment record found in the registry.",
+            "weight": 100,
+            "evidenceRef": "blacklist_registry.csv",
+            "category": "Integrity",
+        })
+
+    # Turnover declaration mismatch — CRITICAL (financial integrity issue)
+    declared = bidder.get("annual_turnover_cr")
+    audited = bidder.get("audited_turnover_cr")
+    if declared and audited is not None and abs(audited - declared) / declared > 0.02:
+        factors.append({
+            "id": f"{bidder_id}-turnover",
+            "name": "Turnover Declaration Mismatch",
+            "severity": "CRITICAL",
+            "description": f"Self-declared turnover of Rs.{declared} Cr differs from the audited value of Rs.{audited} Cr by more than 2%.",
+            "weight": 100,
+            "evidenceRef": "bidders.csv: annual_turnover_cr vs audited_turnover_cr",
+            "category": "Financial",
+        })
+
+    # Tender-specific eligibility failures — HIGH (only computed if tender_id given)
+    if tender_id:
+        eligibility = check_compliance(bidder_id, tender_id)
+        if eligibility:
+            for d in eligibility["details"]:
+                if not d["passed"]:
+                    factors.append({
+                        "id": f"{bidder_id}-{tender_id}-{d['criterion']}",
+                        "name": f"Eligibility Failure: {d['criterion']}",
+                        "severity": "HIGH",
+                        "description": f"Required {d['criterion']} = {d['required']}, bidder value = {d['bidder_value']}.",
+                        "weight": 75,
+                        "evidenceRef": f"check_compliance({bidder_id}, {tender_id})",
+                        "category": "Technical",
+                    })
+
+    # OEM authorization expiry — HIGH if expired, MEDIUM if expiring within 30 days
+    oem_expiry = bidder.get("oem_authorization_expiry")
+    if bidder.get("category") == "OEM" and oem_expiry:
+        days_remaining = (datetime.strptime(oem_expiry, "%Y-%m-%d") - datetime.now()).days
+        if days_remaining < 0:
+            factors.append({
+                "id": f"{bidder_id}-oem-expired",
+                "name": "OEM Authorization Expired",
+                "severity": "HIGH",
+                "description": f"OEM authorization letter expired on {oem_expiry}.",
+                "weight": 75,
+                "evidenceRef": "bidders.csv: oem_authorization_expiry",
+                "category": "Authorization",
+            })
+        elif days_remaining <= 30:
+            factors.append({
+                "id": f"{bidder_id}-oem-expiring",
+                "name": "OEM Authorization Expiring Soon",
+                "severity": "MEDIUM",
+                "description": f"OEM authorization letter expires on {oem_expiry} ({days_remaining} days remaining).",
+                "weight": 40,
+                "evidenceRef": "bidders.csv: oem_authorization_expiry",
+                "category": "Authorization",
+            })
+
+    # Other statutory checks (GST / PAN / Udyam / EPFO-ESIC) not in good standing — MEDIUM
+    for c in statutory["checks"]:
+        if c["check"] == "blacklist" or c["passed"]:
+            continue
+        factors.append({
+            "id": f"{bidder_id}-{c['check']}",
+            "name": f"{c['check'].upper()} Not In Good Standing",
+            "severity": "MEDIUM",
+            "description": c.get("detail") or f"{c['check'].upper()} status: {c.get('status', 'see /verify endpoint')}.",
+            "weight": 40,
+            "evidenceRef": f"verify_bidder_credentials({bidder_id})",
+            "category": "Statutory",
+        })
+
+    return factors
+
+
+def get_expiries(bidder_id: str):
+    """Real expiry-tracked items. Currently the ONLY expiry date anywhere in
+    the dataset is OEM authorization (OEM-category bidders only) — GST/PAN/
+    Udyam portal records carry a status but no expiry date. So this list is
+    genuinely short (0 or 1 items), not padded with invented dates."""
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+
+    items = []
+    oem_expiry = bidder.get("oem_authorization_expiry")
+    if bidder.get("category") == "OEM" and oem_expiry:
+        days_remaining = (datetime.strptime(oem_expiry, "%Y-%m-%d") - datetime.now()).days
+        if days_remaining < 0:
+            risk, action = "CRITICAL", "Authorization has lapsed — request a renewed OEM letter before proceeding."
+        elif days_remaining <= 30:
+            risk, action = "HIGH", "Follow up with the bidder for a renewed OEM authorization letter."
+        elif days_remaining <= 90:
+            risk, action = "MEDIUM", "Monitor; renewal not yet urgent."
+        else:
+            risk, action = "LOW", "No action required."
+        items.append({
+            "requirement": "OEM Authorization Letter",
+            "documentName": "OEM Authorization Letter",
+            "expiryDate": oem_expiry,
+            "daysRemaining": days_remaining,
+            "risk": risk,
+            "actionRequired": action,
+        })
+    return items
+
+
+def _verification_activity_for_bidder(bidder_id: str, bidder_name: str):
+    """Shared by get_recent_verification_activity() (all bidders) and
+    get_audit_log() (one bidder) so the two endpoints can't silently drift
+    out of sync with each other."""
+    result = verify_bidder_credentials(bidder_id)
+    if result is None:
+        return []
+    now = datetime.now().isoformat()
+    return [
+        {
+            "bidder_id": bidder_id,
+            "bidder_name": bidder_name,
+            "check_type": check["check"],
+            "passed": check["passed"],
+            "detail": _format_activity_detail(check),
+            "reference_id": f"VER-{check['check'].upper()}-{bidder_id}",
+            "timestamp": now,
+        }
+        for check in result["checks"]
+    ]
+
+
+def _audit_records_for_bidder(bidder_id: str, bidder_name: str):
+    """Unified, AuditRecord-shaped events for one bidder: persisted officer
+    actions (audit_events_df) + live-computed statutory checks
+    (_verification_activity_for_bidder), both reshaped to the same fields the
+    frontend's AuditRecord type expects. Shared by get_audit_log() (single
+    bidder) and get_recent_verification_activity() (all bidders) so the two
+    can't drift into different shapes."""
+    live_checks = [
+        {
+            "id": a["reference_id"],
+            "timestamp": a["timestamp"],
+            "actor": "AI Verification Engine",
+            "role": "AI Verification Engine",
+            "action": f"{a['check_type'].upper()} statutory check",
+            "source": "verify_bidder_credentials()",
+            "result": "PASS" if a["passed"] else "DISCREPANCY",
+            "evidenceRef": a["reference_id"],
+            "comments": a["detail"],
+            "bidderId": bidder_id,
+        }
+        for a in _verification_activity_for_bidder(bidder_id, bidder_name)
+    ]
+
+    persisted = audit_events_df[audit_events_df["bidder_id"] == bidder_id]
+    persisted_records = [
+        {
+            "id": row["id"],
+            "timestamp": row["timestamp"],
+            "actor": row["actor"],
+            "role": row["role"],
+            "action": row["action"],
+            "source": row["source"],
+            "result": row["result"],
+            "evidenceRef": row["evidence_ref"] if pd.notna(row["evidence_ref"]) else None,
+            "comments": row["comments"] if pd.notna(row["comments"]) else None,
+            "bidderId": row["bidder_id"],
+        }
+        for _, row in persisted.iterrows()
+    ]
+
+    return persisted_records + live_checks
+
+
+def get_audit_log(bidder_id: str):
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+    records = _audit_records_for_bidder(bidder_id, bidder["company_name"])
+    records.sort(key=lambda r: r["timestamp"], reverse=True)
+    return records
+
+
+def get_recent_verification_activity(limit: int = 10):
+    """Real activity feed across ALL bidders — persisted officer actions
+    (audit_events_df) merged with live-computed statutory checks, newest
+    first. Uses the exact same per-bidder builder as get_audit_log(), just
+    looped across every bidder instead of scoped to one."""
+    records = []
+    for bidder_id in bidders_df["bidder_id"].tolist():
+        bidder = get_bidder_by_id(bidder_id)
+        records.extend(_audit_records_for_bidder(bidder_id, bidder["company_name"]))
+    records.sort(key=lambda r: r["timestamp"], reverse=True)
+    return records[:limit]
+def append_audit_event(bidder_id: str, actor: str, role: str, action: str, source: str,
+                        result: str, evidence_ref: str = None, comments: str = None):
+    """Persist one officer/system action. Appends to both the in-memory
+    DataFrame (so it shows up immediately in this same process) and the CSV
+    on disk (so it survives a restart) — this is what makes officer actions
+    real instead of session-only."""
+    global audit_events_df
+    new_id = f"AUD-{len(audit_events_df) + 8800}"
+    row = {
+        "id": new_id,
+        "bidder_id": bidder_id,
+        "timestamp": datetime.now().isoformat(),
+        "actor": actor,
+        "role": role,
+        "action": action,
+        "source": source,
+        "result": result,
+        "evidence_ref": evidence_ref,
+        "comments": comments,
+    }
+    audit_events_df = pd.concat([audit_events_df, pd.DataFrame([row])], ignore_index=True)
+    pd.DataFrame([row]).to_csv(AUDIT_EVENTS_PATH, mode="a", header=False, index=False)
+    return row
+
+def get_timeline(bidder_id: str):
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+
+    events = []
+
+    reg_date = bidder.get("registration_date")
+    if reg_date:
+        events.append({
+            "date": reg_date,
+            "year": reg_date[:4],
+            "title": "Bidder Registered",
+            "description": f"{bidder['company_name']} registered in CPCL's procurement system.",
+            "type": "milestone",
+        })
+
+    oem_expiry = bidder.get("oem_authorization_expiry")
+    if bidder.get("category") == "OEM" and oem_expiry:
+        days_remaining = (datetime.strptime(oem_expiry, "%Y-%m-%d") - datetime.now()).days
+        events.append({
+            "date": oem_expiry,
+            "year": oem_expiry[:4],
+            "title": "OEM Authorization Expired" if days_remaining < 0 else "OEM Authorization Expiry Due",
+            "description": f"Authorization letter {'expired' if days_remaining < 0 else 'expires'} on {oem_expiry}.",
+            "type": "critical" if days_remaining < 0 else "warning",
+        })
+
+    persisted = audit_events_df[audit_events_df["bidder_id"] == bidder_id]
+    for _, row in persisted.iterrows():
+        events.append({
+            "date": row["timestamp"][:10],
+            "year": row["timestamp"][:4],
+            "title": row["action"],
+            "description": row["comments"] if pd.notna(row["comments"]) else row["result"],
+            "type": "critical" if row["result"] in ("DISCREPANCY", "DISQUALIFIED")
+                    else "warning" if row["result"] == "REVIEW"
+                    else "neutral",
+        })
+
+    events.sort(key=lambda e: e["date"])
+    return events
