@@ -5,7 +5,6 @@ import shutil, tempfile, os
 import data_loader
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields
 from data_loader import verify_certificate_against_records
-from document_integrity import get_document_integrity
 from auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     get_user_by_email, create_user, verify_password, create_access_token,
@@ -21,7 +20,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Free API key from https://console.groq.com/keys (no billing needed).
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+# NOTE: the client is created lazily inside the endpoint (not here at
+# import time) so that importing this module never fails just because
+# GROQ_API_KEY isn't set — e.g. in CI, where there's no .env file.
+def _get_groq_client() -> Groq:
+    return Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 app = FastAPI()
 
@@ -164,7 +167,6 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
     try:
         raw_text = extract_text_from_pdf(tmp_path)
         extracted = extract_certificate_fields(raw_text)
-        integrity = get_document_integrity(tmp_path)
     finally:
         os.remove(tmp_path)
 
@@ -174,7 +176,6 @@ async def verify_certificate(bidder_id: str, file: UploadFile = File(...)):
         "bidder_id": bidder_id,
         "extracted": extracted,
         "verification": verification,
-        "document_integrity": integrity,
     }
 
 @app.post("/auth/register", response_model=UserOut, status_code=201)
@@ -342,6 +343,7 @@ facts beyond what is listed above. Sign off as "For Chennai Petroleum
 Corporation Limited (CPCL)". Return ONLY the letter text, nothing else."""
 
     try:
+        groq_client = _get_groq_client()
         response = groq_client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
