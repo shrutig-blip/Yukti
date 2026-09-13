@@ -79,8 +79,7 @@ class AuditService {
    * dashboard expects.
    */
   public async getRecentActivity(limit: number = 10): Promise<AuditRecord[]> {
-    const raw = await apiGet<RawActivityItem[]>(`/audit/recent-activity?limit=${limit}`);
-    return raw.map(mapRawActivity);
+     return apiGet<AuditRecord[]>(`/audit/recent-activity?limit=${limit}`);
   }
 
   /**
