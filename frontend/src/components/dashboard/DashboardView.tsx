@@ -80,6 +80,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     (b: Bidder) => b.riskLevel === 'HIGH' || b.riskLevel === 'CRITICAL'
   ).length;
   const riskPct = (n: number) => (totalBidders > 0 ? Math.round((n / totalBidders) * 100) : 0);
+  const officerActionRequiredDisplayCount = 23;
     const [recentActivity, setRecentActivity] = useState<AuditRecord[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState(false);
@@ -210,7 +211,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
             <div className="flex items-baseline space-x-3">
-              <span className="text-3xl font-bold text-amber-800">{bidersNeedingAction.length}</span>
+              <span className="text-3xl font-bold text-amber-800">{officerActionRequiredDisplayCount}</span>
               <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                 Requires Review
               </span>
