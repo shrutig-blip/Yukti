@@ -60,6 +60,15 @@ export function apiPostJson<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
+export function apiPatchJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 // Alias kept so existing callers (authService.ts) that import apiPost
 // keep working without changes — both names call the same implementation.
 export const apiPost = apiPostJson;
+

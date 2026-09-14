@@ -191,16 +191,74 @@ def extract_udyam_certificate_fields(text: str) -> dict:
             fields["udyam_number"] = shape_match.group(0)
     return fields
 
+_DOB_RE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4}")
+
+
+def _next_real_value(lines, start_idx: int, min_letters: int = 2, max_lookahead: int = 4):
+    """Scans forward from start_idx and returns the first chunk of text that
+    looks like a genuine value (>= min_letters consecutive letters), skipping
+    blank lines and single-character OCR noise (e.g. a stray misread "f" or
+    "[a]" from a photo border) rather than grabbing whatever non-whitespace
+    token happens to sit right after a label."""
+    for j in range(start_idx, min(start_idx + max_lookahead, len(lines))):
+        candidate = re.sub(r"[\[\]|]", " ", lines[j].strip())
+        candidate = re.sub(r"\s{2,}", " ", candidate).strip()
+        # drop isolated single-letter tokens (common OCR artifact noise)
+        candidate = re.sub(r"(^|\s)[A-Za-z](\s|$)", " ", candidate).strip()
+        if re.search(rf"[A-Za-z]{{{min_letters},}}", candidate):
+            return candidate
+    return None
+
+
 def extract_pan_certificate_fields(text: str) -> dict:
-    return _apply_patterns(text, {
-        "name": r"Name\s*[:\-]?\s*(.+)",
-        # PAN format: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F) — matched
-        # directly by shape rather than a label, since PAN cards/letters don't
-        # consistently print a "PAN Number:" label the way GST/Udyam certs do.
-        "pan_number": r"\b([A-Z]{5}[0-9]{4}[A-Z])\b",
-        "date_of_birth": r"Date\s*of\s*Birth\s*[:\-]?\s*([\d\-/]+)",
-        "father_name": r"Father'?s?\s*Name\s*[:\-]?\s*(.+)",
-    })
+    # PAN CARDS ARE LINE-STRUCTURED, NOT "Label: Value" ON ONE LINE.
+    #
+    # On real (scanned/photographed) PAN cards, the bilingual label sits on
+    # its own line and the actual value is on the line(s) that follow — e.g.
+    #   "नाम / Name"
+    #   "APPLICANT NAME"
+    # A single regex like r"Name\s*[:\-]?\s*(.+)" relies on \s* eating the
+    # newline to reach the next line's value, but real OCR output on photos
+    # very often has a stray misread character trailing the label on its OWN
+    # line (e.g. "नाम / Name f" — a border/artifact misread) — that trailing
+    # junk gets captured instead of the real value one line down.
+    #
+    # This walks the text line by line so it can skip that kind of noise and
+    # find the actual value line, while still handling clean single-line
+    # "Name: XYZ" text (typed certificates / text-layer PDFs) via the same
+    # same-line-first lookup.
+    lines = text.splitlines()
+    result = {"name": None, "father_name": None, "date_of_birth": None, "pan_number": None}
+
+    # PAN format: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F) — matched
+    # directly by shape rather than a label, since PAN cards/letters don't
+    # consistently print a "PAN Number:" label the way GST/Udyam certs do.
+    pan_match = _PAN_SHAPE_RE.search(text)
+    if pan_match:
+        result["pan_number"] = pan_match.group(0)
+
+    for i, line in enumerate(lines):
+        if result["father_name"] is None and re.search(r"Father'?s?\s*Name", line, re.IGNORECASE):
+            after_label = re.split(r"Father'?s?\s*Name\s*[:\-]?", line, flags=re.IGNORECASE, maxsplit=1)[-1]
+            result["father_name"] = _next_real_value([after_label], 0) or _next_real_value(lines, i + 1)
+            continue
+        # \bName\b would also match inside a "Father's Name" line, so this
+        # only runs once father_name's own check above has had first claim
+        # on that line (via `continue`), and only if "name" isn't set yet.
+        if result["name"] is None and re.search(r"\bName\b", line, re.IGNORECASE):
+            after_label = re.split(r"Name\s*[:\-]?", line, flags=re.IGNORECASE, maxsplit=1)[-1]
+            result["name"] = _next_real_value([after_label], 0) or _next_real_value(lines, i + 1)
+            continue
+        if result["date_of_birth"] is None and re.search(r"Date\s*of\s*Birth", line, re.IGNORECASE):
+            dob_match = _DOB_RE.search(line)
+            if not dob_match:
+                for j in range(i + 1, min(i + 3, len(lines))):
+                    dob_match = _DOB_RE.search(lines[j])
+                    if dob_match:
+                        break
+            result["date_of_birth"] = dob_match.group(0) if dob_match else None
+
+    return result
 
 def extract_epfo_certificate_fields(text: str) -> dict:
     return _apply_patterns(text, {
@@ -220,6 +278,33 @@ def extract_certificate_fields(text: str) -> dict:
     elif cert_type == "epfo":
         return {"document_type": "epfo", **extract_epfo_certificate_fields(text)}
     return {"document_type": "unknown"}
+
+def extract_nit_requirements(text: str) -> dict:
+    # regex/pattern matching se nikaalo: min turnover %, local content %,
+    # MSME-only clause, category allowed, submission deadline, etc.
+    # extract_gst_certificate_fields() jaisa pattern follow karo
+
+    fields = _apply_patterns(text, {
+        "tender_title": r"(?:Tender\s*Title|Name\s*of\s*Work|Subject)\s*[:\-]?\s*(.+)",
+        "tender_id": r"(?:Tender\s*(?:Reference\s*)?(?:No\.?|Number|ID))\s*[:\-]?\s*(\S+)",
+        "min_turnover_cr": r"(?:Minimum\s*)?(?:Annual\s*)?Turnover\s*[:\-]?\s*(?:Rs\.?|₹)?\s*([\d.]+)\s*(?:Cr|Crore|Lakh)?",
+        "min_local_content_percent": r"Local\s*Content\s*[:\-]?\s*([\d.]+)\s*%",
+        "category_allowed": r"(?:Category|Eligible\s*Category)\s*[:\-]?\s*(.+)",
+        "submission_deadline": r"(?:Submission|Bid)\s*Deadline\s*[:\-]?\s*([\d\-/:\s]+)",
+        "estimated_value_cr": r"Estimated\s*(?:Tender\s*)?Value\s*[:\-]?\s*(?:Rs\.?|₹)?\s*([\d.]+)\s*(?:Cr|Crore)?",
+    })
+
+    # MSME/startup relaxation clauses are usually a plain statement in the
+    # text ("Tender restricted to MSME bidders only"), not a labeled value —
+    # so detect them by presence of key phrases, same as a boolean flag.
+    fields["msme_only"] = bool(
+        re.search(r"MSME\s*only|restricted\s*to\s*MSME", text, re.IGNORECASE)
+    )
+    fields["startup_relaxation"] = bool(
+        re.search(r"startup\s*relaxation|DPIIT\s*recognized\s*startup", text, re.IGNORECASE)
+    )
+
+    return fields
 
 
 # ---------------------------------------------------------------------------

@@ -280,8 +280,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div style={{ width: `${pct(pendingCount)}%` }} className="bg-[#0F766E]" title={`Pending (${pendingCount})`} />
             </div>
             <div className="flex justify-between text-[11px] text-slate-400 font-medium">
-              <span>Verified Compliant (59.5%)</span>
-              <span>Pending / Discrepancy (40.5%)</span>
+              <span>Verified Compliant ({pct(compliantCount)}%)</span>
+              <span>Pending / Discrepancy ({pct(reviewRequiredCount + nonCompliantCount + pendingCount)}%)</span>
             </div>
           </div>
 
@@ -292,8 +292,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="w-2 h-2 rounded-full bg-[#15803D]" />
                 <span>Compliant</span>
               </div>
-              <div className="text-2xl font-bold text-emerald-900 mt-1">28</div>
-              <div className="text-xs text-emerald-700 font-medium">59.5%</div>
+              <div className="text-2xl font-bold text-emerald-900 mt-1">{compliantCount}</div>
+              <div className="text-xs text-emerald-700 font-medium">{pct(compliantCount)}%</div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-amber-50/70 border border-amber-200">
@@ -301,8 +301,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="w-2 h-2 rounded-full bg-[#B7791F]" />
                 <span>Review Req.</span>
               </div>
-              <div className="text-2xl font-bold text-amber-900 mt-1">11</div>
-              <div className="text-xs text-amber-700 font-medium">23.4%</div>
+              <div className="text-2xl font-bold text-amber-900 mt-1">{reviewRequiredCount}</div>
+              <div className="text-xs text-amber-700 font-medium">{pct(reviewRequiredCount)}%</div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-red-50/70 border border-red-200">
@@ -310,8 +310,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="w-2 h-2 rounded-full bg-[#B91C1C]" />
                 <span>Discrepancy</span>
               </div>
-              <div className="text-2xl font-bold text-red-900 mt-1">5</div>
-              <div className="text-xs text-red-700 font-medium">10.6%</div>
+              <div className="text-2xl font-bold text-red-900 mt-1">{nonCompliantCount}</div>
+              <div className="text-xs text-red-700 font-medium">{pct(nonCompliantCount)}%</div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-teal-50/70 border border-teal-200">
@@ -319,8 +319,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="w-2 h-2 rounded-full bg-[#0F766E]" />
                 <span>Pending</span>
               </div>
-              <div className="text-2xl font-bold text-teal-900 mt-1">3</div>
-              <div className="text-xs text-teal-700 font-medium">6.5%</div>
+              <div className="text-2xl font-bold text-teal-900 mt-1">{pendingCount}</div>
+              <div className="text-xs text-teal-700 font-medium">{pct(pendingCount)}%</div>
             </div>
           </div>
         </div>

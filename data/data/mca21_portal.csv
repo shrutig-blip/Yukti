@@ -1,0 +1,151 @@
+bidder_id,cin,company_name_mca,date_of_incorporation,roc_office,company_status,filing_status,director_kyc_status
+BID00001,L80145UP2021PLC378661,Universal Enterprises Ltd,2021-02-13,RoC Kanpur,Active,Up to date,Compliant
+BID00002,L83489WB2024PLC363129,Bharat Manufacturing Co LLP,2024-12-08,RoC Kolkata,Active,Up to date,Compliant
+BID00003,L13416KA2018PLC450227,Sai Suppliers LLP,2018-10-20,RoC Bangalore,Active,AOC-4 Overdue,Compliant
+BID00004,U77643KA2018PTC626898,Precision Constructions LLP,2018-09-29,RoC Bangalore,Active,Up to date,Compliant
+BID00005,L54190MH2019PLC288855,Universal Exports LLP (Formerly known name on record),2019-10-18,RoC Mumbai,Active,Up to date,Compliant
+BID00006,L36519DL2022PLC331045,Vintage Steel Works Ltd,2022-11-16,RoC Delhi,Active,Up to date,Compliant
+BID00007,L22445PB2020PLC222869,Metro Manufacturing Co Private Limited,2020-09-13,RoC Chandigarh,Active,Up to date,Compliant
+BID00008,L21043MH2021PLC059410,National Exports Private Limited,2021-06-30,RoC Mumbai,Active,Up to date,Compliant
+BID00009,U49797DL2018PTC641902,Metro Steel Works Pvt Ltd,2018-10-18,RoC Delhi,Active,Up to date,Compliant
+BID00010,U92522WB2022PTC747678,Bharat Electronics Private Limited,2022-07-08,RoC Kolkata,Active,Up to date,Compliant
+BID00011,U35434TG2019PTC328280,Modern Manufacturing Co Ltd,2019-01-18,RoC Hyderabad,Active,Up to date,Compliant
+BID00012,U89758HR2023PTC441460,Elite Electronics Private Limited,2023-06-17,RoC Chandigarh,Active,Up to date,Non-Compliant (DIN under deactivation)
+BID00013,L65067GJ2018PLC756557,Metro Infra Solutions Pvt Ltd,2018-06-12,RoC Ahmedabad,Active,Up to date,Compliant
+BID00014,L46751KA2018PLC181621,Krishna Manufacturing Co,2018-10-28,RoC Bangalore,Active,Up to date,Compliant
+BID00015,U65959KA2019PTC609866,Apex Enterprises Private Limited,2019-03-01,RoC Bangalore,Active,Up to date,Compliant
+BID00016,U78649UP2018PTC905796,Universal Technologies LLP,2018-06-30,RoC Kanpur,Active,Up to date,Compliant
+BID00017,U59798MH2020PTC370235,Bharat Exports Pvt Ltd,2020-10-19,RoC Mumbai,Active,Up to date,Compliant
+BID00018,U52795TG2019PTC385404,Reliable Technologies Private Limited,2019-10-15,RoC Hyderabad,Active,Up to date,Compliant
+BID00019,L88257TN2023PLC824788,Elite Suppliers Private Limited,2023-09-18,RoC Chennai,Active,Up to date,Compliant
+BID00020,U61674KA2020PTC535352,United Electricals Private Limited,2020-02-18,RoC Bangalore,Active,Up to date,Compliant
+BID00021,L65597MH2019PLC280904,Prime Textiles,2019-12-14,RoC Mumbai,Active,Up to date,Compliant
+BID00022,L92006TN2018PLC042491,Vishal Fabricators Private Limited,2018-12-14,RoC Chennai,Active,Up to date,Compliant
+BID00023,U90908MH2020PTC518446,Vintage Enterprises & Co,2020-06-15,RoC Mumbai,Active,Up to date,Compliant
+BID00024,U41345TG2023PTC949550,Universal Textiles & Co,2023-06-08,RoC Hyderabad,Active,Up to date,Compliant
+BID00025,L28521WB2022PLC883657,Prime Textiles Ltd,2022-05-15,RoC Kolkata,Active,Up to date,Compliant
+BID00026,U73604MP2023PTC347316,Continental Constructions & Co,2023-06-13,RoC Gwalior,Active,Up to date,Compliant
+BID00027,U56217OR2018PTC805727,Sterling Traders Pvt Ltd,2018-12-02,RoC Cuttack,Active,Up to date,Compliant
+BID00028,U90608KA2020PTC814234,Apex Suppliers,2020-06-11,RoC Bangalore,Active,Up to date,Compliant
+BID00029,U59249UP2021PTC797651,United Infra Solutions LLP,2021-05-20,RoC Kanpur,Active,Up to date,Compliant
+BID00030,U15692TG2019PTC339246,Continental Engineering Works LLP,2019-09-19,RoC Hyderabad,Active,Up to date,Compliant
+BID00031,U26868KA2024PTC389206,Vintage Exports & Co,2024-11-04,RoC Bangalore,Active,Up to date,Compliant
+BID00032,L31979HR2023PLC144585,Modern Logistics LLP,2023-05-05,RoC Chandigarh,Active,Up to date,Compliant
+BID00033,U13341GJ2021PTC319592,Vishal Suppliers & Co,2021-06-09,RoC Ahmedabad,Active,Up to date,Compliant
+BID00034,U87566GJ2023PTC649641,Metro Fabricators Pvt Ltd,2023-07-04,RoC Ahmedabad,Active,Up to date,Compliant
+BID00035,U97431MH2022PTC503113,Elite Enterprises Ltd,2022-04-08,RoC Mumbai,Active,Up to date,Compliant
+BID00036,L96711OR2023PLC837306,Vintage Engineering Works Ltd,2023-01-20,RoC Cuttack,Dormant,Up to date,Compliant
+BID00037,L31468UP2019PLC602176,Vishal Steel Works Pvt Ltd,2019-08-06,RoC Kanpur,Dormant,Up to date,Compliant
+BID00038,L62157KA2018PLC397103,National Engineering Works & Co,2018-06-14,RoC Bangalore,Active,Up to date,Compliant
+BID00039,L46791WB2022PLC203223,Global Agro Industries,2022-06-29,RoC Kolkata,Active,Up to date,Compliant
+BID00040,U60273MH2022PTC932590,Krishna Textiles Pvt Ltd,2022-12-16,RoC Mumbai,Active,Up to date,Compliant
+BID00041,U70630UP2019PTC659648,Vishal Steel Works,2019-04-27,RoC Kanpur,Under Liquidation,Up to date,Compliant
+BID00042,U91268GJ2021PTC893432,Metro Electricals & Co,2021-10-24,RoC Ahmedabad,Active,Up to date,Compliant
+BID00043,U81221UP2020PTC324988,Vishal Electronics Private Limited,2020-08-14,RoC Kanpur,Active,Up to date,Compliant
+BID00044,U85269MH2018PTC107939,Sterling Constructions,2018-03-04,RoC Mumbai,Active,Up to date,Compliant
+BID00045,U78375PB2018PTC293115,National Electronics LLP,2018-05-28,RoC Chandigarh,Active,Up to date,Compliant
+BID00046,L36364KL2019PLC324813,National Agro Industries Pvt Ltd,2019-08-20,RoC Ernakulam,Active,Up to date,Compliant
+BID00047,L50695WB2021PLC173816,Continental Technologies Private Limited,2021-05-10,RoC Kolkata,Active,Up to date,Compliant
+BID00048,L47169GJ2023PLC792440,Sterling Electronics Pvt Ltd,2023-07-28,RoC Ahmedabad,Active,Up to date,Compliant
+BID00049,U22450RJ2018PTC281652,Apex Suppliers,2018-05-17,RoC Jaipur,Active,Up to date,Compliant
+BID00050,L14482MH2023PLC788580,Reliable Infra Solutions Private Limited,2023-04-03,RoC Mumbai,Active,Up to date,Compliant
+BID00051,L16134MH2020PLC173695,Sterling Exports LLP,2020-08-15,RoC Mumbai,Active,Up to date,Compliant
+BID00052,L90497PB2024PLC268881,Vintage Suppliers,2024-01-11,RoC Chandigarh,Active,Up to date,Compliant
+BID00053,L87037PB2021PLC881532,Elite Agro Industries LLP,2021-02-04,RoC Chandigarh,Active,Up to date,Compliant
+BID00054,L57636BR2019PLC150209,Prime Suppliers Private Limited,2019-08-16,RoC Patna,Active,Up to date,Compliant
+BID00055,L25465UP2022PLC989255,Shree Technologies Pvt Ltd,2022-01-22,RoC Kanpur,Active,Up to date,Compliant
+BID00056,L51132GJ2022PLC382737,Vintage Engineering Works,2022-12-22,RoC Ahmedabad,Active,Up to date,Compliant
+BID00057,U22375TN2023PTC306115,Vishal Steel Works Ltd,2023-02-01,RoC Chennai,Active,Up to date,Compliant
+BID00058,U98480MH2024PTC885985,Krishna Logistics Private Limited,2024-04-19,RoC Mumbai,Active,Up to date,Compliant
+BID00059,L63417PB2024PLC997006,Reliable Engineering Works LLP,2024-06-09,RoC Chandigarh,Active,Up to date,Compliant
+BID00060,L66704KL2023PLC507116,Krishna Traders Private Limited,2023-12-13,RoC Ernakulam,Active,Up to date,Compliant
+BID00061,U45319DL2021PTC516643,Bharat Infra Solutions Ltd,2021-03-06,RoC Delhi,Active,Up to date,Compliant
+BID00062,U28004DL2022PTC790639,Vishal Engineering Works Private Limited,2022-10-30,RoC Delhi,Active,Up to date,Compliant
+BID00063,L51383MH2022PLC599022,National Textiles Ltd,2022-11-24,RoC Mumbai,Active,Up to date,Compliant
+BID00064,U45185GJ2019PTC565490,National Constructions LLP,2019-02-26,RoC Ahmedabad,Active,Up to date,Compliant
+BID00065,U39942GJ2024PTC718999,Continental Steel Works,2024-08-19,RoC Ahmedabad,Active,Up to date,Compliant
+BID00066,L12285MH2019PLC252701,Sterling Steel Works Ltd,2019-02-28,RoC Mumbai,Active,Up to date,Compliant
+BID00067,L66732OR2021PLC695022,Global Engineering Works Private Limited,2021-10-02,RoC Cuttack,Strike Off,Up to date,Compliant
+BID00068,U68493TN2022PTC793352,Bharat Logistics LLP,2022-10-01,RoC Chennai,Active,Up to date,Compliant
+BID00069,U60785MH2019PTC464049,Modern Textiles & Co,2019-06-21,RoC Mumbai,Active,Up to date,Compliant
+BID00070,L71860HR2022PLC849134,Global Steel Works Pvt Ltd,2022-02-15,RoC Chandigarh,Active,Overdue - 2 FYs,Compliant
+BID00071,U79323OR2023PTC853007,Vishal Constructions Ltd,2023-10-15,RoC Cuttack,Active,Up to date,Compliant
+BID00072,U18562RJ2018PTC136969,Metro Technologies & Co,2018-04-26,RoC Jaipur,Active,Up to date,Compliant
+BID00073,L77206HR2024PLC291822,Bharat Technologies Pvt Ltd,2024-02-26,RoC Chandigarh,Active,Up to date,Compliant
+BID00074,U67580KA2020PTC531431,Vishal Suppliers LLP,2020-09-17,RoC Bangalore,Active,Up to date,Compliant
+BID00075,L10396DL2020PLC710781,Reliable Infra Solutions,2020-11-04,RoC Delhi,Active,Up to date,Compliant
+BID00076,L43824TG2023PLC659322,United Textiles Private Limited,2023-02-18,RoC Hyderabad,Active,Up to date,Compliant
+BID00077,U30452KA2023PTC738062,Modern Fabricators LLP,2023-07-31,RoC Bangalore,Active,Up to date,Compliant
+BID00078,L51359UP2022PLC640430,Reliable Enterprises & Co,2022-12-24,RoC Kanpur,Active,Up to date,Compliant
+BID00079,L28490RJ2019PLC044519,Vintage Agro Industries LLP,2019-06-02,RoC Jaipur,Active,Up to date,Compliant
+BID00080,L51932WB2020PLC707214,Apex Steel Works Pvt Ltd,2020-12-08,RoC Kolkata,Active,Up to date,Compliant
+BID00081,L30758WB2018PLC056182,Vintage Fabricators,2018-09-23,RoC Kolkata,Active,Up to date,Compliant
+BID00082,L35830PB2018PLC729607,Global Logistics Ltd,2018-12-20,RoC Chandigarh,Active,Up to date,Compliant
+BID00083,U39277MH2019PTC067497,National Steel Works & Co,2019-09-19,RoC Mumbai,Active,Up to date,Compliant
+BID00084,U73768TN2024PTC438850,Vishal Enterprises LLP,2024-10-14,RoC Chennai,Active,Up to date,Compliant
+BID00085,L36065MH2020PLC092065,National Engineering Works,2020-09-30,RoC Mumbai,Active,Up to date,Compliant
+BID00086,L67243TN2024PLC740462,Sai Infra Solutions & Co,2024-04-19,RoC Chennai,Active,Up to date,Compliant
+BID00087,U20490GJ2020PTC841358,Global Textiles Ltd,2020-05-31,RoC Ahmedabad,Active,Up to date,Compliant
+BID00088,U14372MH2024PTC146108,Elite Fabricators Ltd,2024-03-16,RoC Mumbai,Active,Up to date,Compliant
+BID00089,L69693BR2023PLC523658,Prime Exports LLP,2023-10-13,RoC Patna,Active,Up to date,Compliant
+BID00090,U70902KA2024PTC168842,Vishal Electronics Pvt Ltd,2024-06-27,RoC Bangalore,Active,Up to date,Compliant
+BID00091,U62687MH2024PTC217969,Metro Constructions Private Limited,2024-11-09,RoC Mumbai,Active,Up to date,Compliant
+BID00092,U97871RJ2023PTC265751,Bharat Pharma Private Limited,2023-06-07,RoC Jaipur,Active,Overdue - 2 FYs,Compliant
+BID00093,U74499GJ2022PTC763881,Universal Electricals LLP,2022-12-17,RoC Ahmedabad,Active,Up to date,Compliant
+BID00094,U74289GJ2021PTC790221,Universal Electricals Ltd,2021-09-14,RoC Ahmedabad,Active,Up to date,Compliant
+BID00095,U19916WB2024PTC602563,Universal Infra Solutions & Co,2024-01-01,RoC Kolkata,Active,Up to date,Non-Compliant (DIN under deactivation)
+BID00096,L82705MP2024PLC751572,Global Agro Industries Private Limited,2024-10-04,RoC Gwalior,Active,Up to date,Compliant
+BID00097,L60790GJ2023PLC146495,United Textiles Private Limited,2023-10-12,RoC Ahmedabad,Active,Up to date,Compliant
+BID00098,U18763WB2020PTC195684,Bharat Electronics LLP,2020-08-25,RoC Kolkata,Active,Up to date,Compliant
+BID00099,U48470MH2020PTC210037,Vishal Logistics Ltd,2020-06-13,RoC Mumbai,Active,Up to date,Compliant
+BID00100,U79088RJ2022PTC469782,National Pharma & Co,2022-12-15,RoC Jaipur,Active,Up to date,Compliant
+BID00101,L46553GJ2021PLC378050,Precision Fabricators,2021-03-21,RoC Ahmedabad,Active,Up to date,Compliant
+BID00102,L37617RJ2022PLC515926,Reliable Logistics & Co,2022-05-29,RoC Jaipur,Active,Up to date,Compliant
+BID00103,U47396UP2022PTC116968,Shree Fabricators & Co,2022-09-14,RoC Kanpur,Active,Up to date,Compliant
+BID00104,U77698MP2023PTC155782,Om Manufacturing Co Pvt Ltd,2023-08-26,RoC Gwalior,Active,Up to date,Compliant
+BID00105,U59247TG2023PTC881387,Prime Textiles Private Limited,2023-07-24,RoC Hyderabad,Active,Up to date,Compliant
+BID00106,L33331TN2018PLC740636,Elite Suppliers Private Limited,2018-11-20,RoC Chennai,Active,Up to date,Compliant
+BID00107,U85953TN2018PTC510962,Modern Engineering Works LLP,2018-03-04,RoC Chennai,Active,Up to date,Compliant
+BID00108,L63551UP2022PLC180255,Universal Textiles LLP,2022-02-27,RoC Kanpur,Active,Up to date,Compliant
+BID00109,L49497KA2023PLC597419,Bharat Traders LLP,2023-06-25,RoC Bangalore,Active,Up to date,Compliant
+BID00110,L69028RJ2022PLC786614,Apex Infra Solutions Private Limited,2022-08-17,RoC Jaipur,Active,Overdue - 2 FYs,Compliant
+BID00111,U88807DL2019PTC155795,Elite Electronics Pvt Ltd,2019-03-15,RoC Delhi,Active,Up to date,Compliant
+BID00112,U45546MH2022PTC009750,Metro Electricals LLP,2022-07-19,RoC Mumbai,Active,Up to date,Compliant
+BID00113,L64474KA2021PLC563668,Shree Infra Solutions Pvt Ltd,2021-01-15,RoC Bangalore,Active,Up to date,Compliant
+BID00114,U31910MH2021PTC758160,Bharat Constructions Pvt Ltd,2021-11-17,RoC Mumbai,Active,Up to date,Compliant
+BID00115,L52942MH2021PLC067795,Precision Electronics Private Limited,2021-01-02,RoC Mumbai,Active,Up to date,Compliant
+BID00116,L89165MH2018PLC652482,Apex Electricals Pvt Ltd,2018-02-20,RoC Mumbai,Active,Up to date,Compliant
+BID00117,L89874UP2019PLC181744,Bharat Enterprises Private Limited,2019-07-09,RoC Kanpur,Active,Up to date,Compliant
+BID00118,U34700MP2022PTC793031,Vintage Constructions LLP,2022-06-20,RoC Gwalior,Active,Up to date,Compliant
+BID00119,L31410RJ2023PLC697042,Continental Suppliers LLP,2023-03-06,RoC Jaipur,Active,Up to date,Compliant
+BID00120,U65928GJ2023PTC477479,National Agro Industries,2023-12-29,RoC Ahmedabad,Active,Up to date,Compliant
+BID00121,L54065KA2022PLC786503,Apex Exports Ltd,2022-10-30,RoC Bangalore,Active,Up to date,Compliant
+BID00122,U11208GJ2021PTC136608,Metro Technologies LLP,2021-11-27,RoC Ahmedabad,Active,Up to date,Compliant
+BID00123,U50232RJ2021PTC502963,National Fabricators Pvt Ltd,2021-09-17,RoC Jaipur,Active,Up to date,Compliant
+BID00124,L30303UP2019PLC415024,Global Infra Solutions,2019-02-21,RoC Kanpur,Active,Up to date,Compliant
+BID00125,U92304TN2021PTC486837,United Electricals,2021-05-03,RoC Chennai,Active,Up to date,Compliant
+BID00126,U16023MH2019PTC332009,United Suppliers LLP,2019-11-15,RoC Mumbai,Active,Up to date,Compliant
+BID00127,L20169HR2024PLC664283,Apex Traders & Co,2024-05-04,RoC Chandigarh,Dormant,Up to date,Compliant
+BID00128,U18640RJ2020PTC970794,Universal Pharma Pvt Ltd,2020-10-10,RoC Jaipur,Active,Up to date,Compliant
+BID00129,U79690TG2021PTC255335,Continental Logistics,2021-08-18,RoC Hyderabad,Active,Up to date,Compliant
+BID00130,L78302UP2022PLC929200,Metro Industries Private Limited,2022-05-28,RoC Kanpur,Strike Off,Up to date,Compliant
+BID00131,L26923DL2019PLC638110,Sterling Steel Works Pvt Ltd,2019-01-17,RoC Delhi,Under Liquidation,Up to date,Compliant
+BID00132,L99873GJ2018PLC118766,Apex Enterprises Ltd,2018-07-18,RoC Ahmedabad,Active,Up to date,Compliant
+BID00133,L28861OR2019PLC592749,Vishal Infra Solutions LLP,2019-01-09,RoC Cuttack,Active,Up to date,Compliant
+BID00134,L66150UP2021PLC821388,Continental Suppliers Ltd,2021-07-07,RoC Kanpur,Active,Up to date,Compliant
+BID00135,L59164UP2018PLC634985,Bharat Technologies Pvt Ltd,2018-12-22,RoC Kanpur,Active,Up to date,Compliant
+BID00136,L17900RJ2023PLC778393,Sterling Logistics & Co,2023-10-22,RoC Jaipur,Active,Up to date,Compliant
+BID00137,L91139RJ2022PLC044529,Sai Suppliers & Co,2022-02-05,RoC Jaipur,Active,Up to date,Compliant
+BID00138,L38895RJ2022PLC983992,National Traders Ltd,2022-07-06,RoC Jaipur,Active,Up to date,Compliant
+BID00139,L72665KA2018PLC517508,National Fabricators,2018-02-21,RoC Bangalore,Active,Up to date,Compliant
+BID00140,U69205WB2023PTC221704,Apex Pharma Ltd,2023-11-16,RoC Kolkata,Active,Up to date,Compliant
+BID00141,U57707TN2021PTC443410,United Industries Private Limited,2021-08-11,RoC Chennai,Active,Up to date,Compliant
+BID00142,L69290TG2022PLC914436,Sterling Enterprises & Co,2022-02-17,RoC Hyderabad,Active,Up to date,Compliant
+BID00143,U24869OR2021PTC761984,Universal Suppliers Private Limited,2021-06-13,RoC Cuttack,Active,Up to date,Compliant
+BID00144,U90914KL2019PTC229956,Metro Agro Industries,2019-06-20,RoC Ernakulam,Active,Up to date,Compliant
+BID00145,L42748MP2021PLC676193,Continental Industries Private Limited,2021-05-31,RoC Gwalior,Active,Up to date,Compliant
+BID00146,L13369DL2024PLC103531,Prime Technologies Pvt Ltd,2024-03-03,RoC Delhi,Active,Up to date,Compliant
+BID00147,U15550TG2019PTC730481,National Electricals Pvt Ltd,2019-11-20,RoC Hyderabad,Active,Up to date,Compliant
+BID00148,L58467GJ2022PLC267029,Elite Traders & Co,2022-08-15,RoC Ahmedabad,Active,Up to date,Compliant
+BID00149,U32855MH2024PTC551413,Bharat Agro Industries Private Limited,2024-05-05,RoC Mumbai,Dormant,Up to date,Compliant
+BID00150,L29112UP2023PLC097885,Vintage Suppliers Pvt Ltd,2023-12-26,RoC Kanpur,Active,MGT-7 Overdue,Compliant

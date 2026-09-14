@@ -63,7 +63,53 @@ def read_tender_criteria(tender_id: str):
     criteria = data_loader.get_criteria_by_tender(tender_id)
     if criteria is None:
         raise HTTPException(status_code=404, detail="Tender not found")
-    return criteria
+    # Fixed-schema criteria (unchanged) plus any extensible custom criteria
+    # defined for this tender, so a single GET gives the full picture.
+    return {**criteria, "custom_criteria": data_loader.get_custom_criteria(tender_id)}
+
+
+# ---------------------------------------------------------------------------
+# Generic / extensible tender-criterion model
+# ---------------------------------------------------------------------------
+# See the "Generic / extensible tender-criterion model" block in
+# data_loader.py for the full design rationale. This lets a tender gain a
+# brand-new kind of eligibility rule (any bidder field + operator + value)
+# without a schema migration or backend code change.
+
+class CustomCriterionIn(BaseModel):
+    label: str
+    field: str  # any column on bidders.csv, e.g. "annual_turnover_cr", "state"
+    operator: str  # one of >=, <=, >, <, ==, !=, in, contains
+    value: str
+    mandatory: bool = True
+    weight: float = 1.0
+    rule_reference: Optional[str] = None
+
+
+@app.get("/tender/{tender_id}/criteria/custom")
+def read_custom_criteria(tender_id: str):
+    if data_loader.get_criteria_by_tender(tender_id) is None:
+        raise HTTPException(status_code=404, detail="Tender not found")
+    return data_loader.get_custom_criteria(tender_id)
+
+
+@app.post("/tender/{tender_id}/criteria/custom")
+def create_custom_criterion(tender_id: str, criterion: CustomCriterionIn):
+    try:
+        result = data_loader.add_custom_criterion(tender_id, criterion.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Tender not found")
+    return result
+
+
+@app.delete("/tender/{tender_id}/criteria/custom/{criterion_id}")
+def remove_custom_criterion(tender_id: str, criterion_id: int):
+    deleted = data_loader.delete_custom_criterion(tender_id, criterion_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Criterion not found")
+    return {"deleted": True, "id": criterion_id}
 
 @app.get("/compliance/{bidder_id}/{tender_id}")
 def read_compliance(bidder_id: str, tender_id: str):
@@ -101,6 +147,60 @@ def read_bidder_credentials(bidder_id: str):
     if result is None:
         raise HTTPException(status_code=404, detail="Bidder not found")
     return result
+
+# ---------------------------------------------------------------------------
+# MCA21 (Ministry of Corporate Affairs) integration
+# ---------------------------------------------------------------------------
+# Treated like the existing GST/PAN endpoints: a raw-record lookup plus a
+# standalone verification check. Already also folded into the combined
+# /verify/{bidder_id} response (see verify_bidder_credentials in
+# data_loader.py) — these two endpoints exist for callers that want MCA21
+# on its own, same as GST/PAN don't have standalone endpoints today but
+# MCA21 was specifically requested to.
+
+@app.get("/mca21/{bidder_id}")
+def read_mca21_record(bidder_id: str):
+    result = data_loader.get_mca21_details(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No MCA21 record found for this bidder")
+    return result
+
+
+@app.get("/verify/{bidder_id}/mca21")
+def read_mca21_verification(bidder_id: str):
+    result = data_loader.verify_mca21(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# DigiLocker document pull
+# ---------------------------------------------------------------------------
+# See fetch_digilocker_bundle() in data_loader.py for the real-vs-mock
+# fallback design. Every successful pull is written to the bidder's audit
+# log, same as the certificate-verification flow already does, so a DigiLocker
+# fetch shows up in the officer-facing audit trail.
+
+@app.post("/verify/{bidder_id}/digilocker")
+def fetch_via_digilocker(bidder_id: str):
+    result = data_loader.fetch_digilocker_bundle(bidder_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+
+    doc_count = len(result.get("documents", result.get("raw", {})))
+    data_loader.append_audit_event(
+        bidder_id=bidder_id,
+        actor="System",
+        role="Automated Integration",
+        action="DigiLocker document pull",
+        source=f"DigiLocker ({result['source']})",
+        result="Success",
+        evidence_ref=result.get("issuer_pull_endpoint"),
+        comments=f"{doc_count} document(s) retrieved",
+    )
+    return result
+
 
 class AuditEventIn(BaseModel):
     actor: str

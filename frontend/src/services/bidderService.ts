@@ -43,10 +43,16 @@ import { Bidder, OfficerDecision, SeverityLevel } from '../types';
  * criticalAlertsCount: 1 if the bidder is blacklisted, else 0 (real).
  * documentsCount: NOT tracked by the backend (no document vault yet) — 0.
  *
- * status: the backend has no officer-decision workflow. Every bidder starts
- * 'Pending Review'; recordOfficerDecision() below still works exactly as it
- * did against the mock — it mutates the in-memory cache client-side only.
- * There is no backend endpoint to persist an officer decision.
+ * status: the backend has no separate officer-decision workflow/table, so
+ * this is derived client-side from the real compliance + verify results
+ * fetched above: blacklisted -> 'Disqualified', both checks clean ->
+ * 'Qualified', checks fetched but something failed -> 'Clarification
+ * Requested', checks not fetched (error) -> 'Under Verification'. This is
+ * the AI-side starting point only — recordOfficerDecision() below still
+ * lets an officer override it with the human final call, exactly as it did
+ * against the mock. That override still mutates the in-memory cache
+ * client-side only; there is no backend endpoint to persist an officer
+ * decision.
  *
  * declaredTurnoverCr / auditedTurnoverCr / turnoverMismatch: backend now
  * carries both annual_turnover_cr (self-declared) and audited_turnover_cr
@@ -156,6 +162,25 @@ class BidderService {
       ? verify.checks.some((c) => c.check === 'blacklist' && !c.passed)
       : false;
 
+    // Real automated determination from the compliance + verification checks
+    // just fetched above — previously this was hardcoded to 'Pending Review'
+    // for every bidder regardless of what those checks found, which made
+    // every status-driven view (Compliance Standing, Bidders list filters,
+    // status badges) meaningless until an officer clicked through each
+    // bidder by hand. This is still just the AI-side starting point:
+    // recordOfficerDecision() below continues to let an officer override it
+    // with the human final call.
+    let status: Bidder['status'] = 'Under Verification';
+    if (compliance && verify) {
+      if (isBlacklisted) {
+        status = 'Disqualified';
+      } else if (compliance.overall_compliant && verify.overall_eligible) {
+        status = 'Qualified';
+      } else {
+        status = 'Clarification Requested';
+      }
+    }
+
     return {
       id: raw.bidder_id,
       name: raw.company_name,
@@ -166,7 +191,7 @@ class BidderService {
       complianceScore: compliance?.compliance_score ?? 0,
       riskLevel: compliance?.risk_level ?? 'LOW',
       verificationProgress: compliance || verify ? 100 : 0,
-      status: 'Pending Review',
+      status,
       documentsCount: 0,
       discrepanciesCount: failedEligibility + failedStatutory,
       criticalAlertsCount: isBlacklisted ? 1 : 0,

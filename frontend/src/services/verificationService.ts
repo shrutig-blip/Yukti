@@ -12,12 +12,14 @@ import { VerificationSource, MatchStatus } from '../types';
  * wired into any check before now).
  *
  * Two of the ten "official portals" the UI originally implied — MCA-21
- * (company/turnover cross-check) and OEM Authorization — have NO backend
- * data source at all: there's no CIN field anywhere in bidders.csv, and no
- * OEM-authorization dataset among the provided CSVs. Rather than inventing
- * plausible-looking verified results for them, they're returned as
- * explicit UNAVAILABLE/simulated placeholders (isSimulated: true) so nether
- * the UI nor a judge can mistake them for real checks.
+ * (company/turnover cross-check) and OEM Authorization — had NO backend
+ * data source at all. MCA-21 now does (mca21_portal.csv + the "mca21"
+ * check inside verify_bidder_credentials on the backend), so it's included
+ * in the real loop below like GST/PAN/Udyam/blacklist/EPFO-ESIC. OEM
+ * Authorization still has no dataset — there is still no OEM-authorization
+ * dataset among the provided CSVs — so it remains an explicit
+ * UNAVAILABLE/simulated placeholder (isSimulated: true) rather than an
+ * invented result.
  *
  * The per-field simulators below (verifyGST, verifyUdyam, verifyPAN,
  * verifyMCA, verifyBlacklisting, verifyOEMAuthorization, verifyEPFO) and
@@ -40,6 +42,9 @@ interface RawVerifyCheck {
   detail?: string;
   reason?: string | null;
   name_match?: boolean;
+  cin?: string;
+  company_status?: string;
+  director_kyc_status?: string;
 }
 
 interface RawVerifyResult {
@@ -51,6 +56,7 @@ interface RawVerifyResult {
 const REAL_CHECK_META: Record<string, { name: string; category: string }> = {
   gst: { name: 'GSTN — Goods & Services Tax Portal', category: 'Statutory / Tax' },
   pan: { name: 'Income Tax Department — PAN Database', category: 'Statutory / Tax' },
+  mca21: { name: 'Ministry of Corporate Affairs (MCA-21 Portal)', category: 'Corporate / Financial' },
   udyam: { name: 'Ministry of MSME — Udyam Registration Portal', category: 'MSME / Registration' },
   blacklist: { name: 'CVC & GeM Debarred-Vendor Registry', category: 'Integrity / Debarment' },
   epfo_esic: { name: 'EPFO / ESIC — Labour Law Compliance', category: 'Statutory / Labour' },
@@ -62,9 +68,9 @@ class VerificationService {
     try {
       real = await apiGet<RawVerifyResult>(`/verify/${bidderId}`);
     } catch {
-      // Backend unreachable — fall through and still return the two
-      // simulated placeholders below rather than throwing and blanking
-      // the whole tab.
+      // Backend unreachable — fall through and still return the one
+      // remaining simulated placeholder below rather than throwing and
+      // blanking the whole tab.
     }
 
     const sources: VerificationSource[] = [];
@@ -74,8 +80,11 @@ class VerificationService {
         const meta = REAL_CHECK_META[check.check] || { name: check.check, category: 'Statutory' };
         const detailParts = [
           check.status ? `Status: ${check.status}` : null,
+          check.company_status ? `Company status: ${check.company_status}` : null,
           check.filing_status ? `Filing: ${check.filing_status}` : null,
           check.it_compliance_status ? `IT compliance: ${check.it_compliance_status}` : null,
+          check.director_kyc_status ? `Director KYC: ${check.director_kyc_status}` : null,
+          check.cin ? `CIN: ${check.cin}` : null,
           check.detail || null,
           check.reason ? `Reason: ${check.reason}` : null,
           check.name_match === false ? 'Registered name does not match bidder company name' : null,
@@ -95,21 +104,11 @@ class VerificationService {
       }
     }
 
-    // No backend data source exists for either of these — see design note
-    // above. Kept as explicit, clearly-labeled placeholders.
-    sources.push({
-      id: `${bidderId}-mca`,
-      name: 'Ministry of Corporate Affairs (MCA-21 Portal)',
-      category: 'Corporate / Financial',
-      verificationStatus: 'UNAVAILABLE',
-      lastChecked: '—',
-      evidenceSummary:
-        'No CIN or MCA-21 filing data exists in the current backend dataset. This check cannot be performed against real data yet.',
-      matchStatus: 'REVIEW',
-      endpointNote: 'Not tracked by backend — simulated placeholder only',
-      isSimulated: true,
-    });
-
+    // MCA21 used to have NO backend data source (see git history) and was
+    // returned as an explicit UNAVAILABLE placeholder here. It's now backed
+    // by mca21_portal.csv and included automatically in the loop above (the
+    // "mca21" check key), so that placeholder was removed. OEM Authorization
+    // still has no dataset, so it remains the one honestly-simulated source.
     sources.push({
       id: `${bidderId}-oem`,
       name: 'OEM Authorization Verification',

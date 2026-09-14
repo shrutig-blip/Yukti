@@ -93,6 +93,12 @@ class DocumentService {
     return apiPostForm(`/verify/${bidderId}/certificate`, formData);
   }
 
+  public async uploadTenderDocument(file: File): Promise<{ extracted: any }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiPostForm('/tender/nit-extraction', formData);
+  }
+
   /**
    * Real replacement for simulateUpload(): actually sends the file to
    * /verify/{bidderId}/certificate (pdfplumber + OCR + portal check +

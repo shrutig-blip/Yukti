@@ -147,6 +147,14 @@ function AppContent() {
     }
   };
 
+  const handleExtractTenderDocument = async (file: File) => {
+    const result = await tenderService.extractTenderDocument(selectedTenderId, file);
+    setTenders((prev) =>
+      prev.map((t) => (t.id === selectedTenderId ? { ...t, extractedDate: result.extracted_date } : t))
+    );
+    return result;
+  };
+
   const handleDecisionUpdated = (updatedBidder: Bidder) => {
     const updatedList = bidders.map((b) => (b.id === updatedBidder.id ? updatedBidder : b));
     setBidders(updatedList);
@@ -239,6 +247,7 @@ function AppContent() {
             requirements={currentRequirements}
             onUpdateRequirement={handleUpdateRequirement}
             onNavigateToBidders={() => setActiveTab('bidders')}
+            onExtractDocument={handleExtractTenderDocument}
           />
         )}
 
