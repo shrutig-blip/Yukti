@@ -46,6 +46,10 @@ export const BiddersView: React.FC<BiddersViewProps> = ({
     return matchesSearch && matchesRisk && matchesStatus && matchesTender;
   });
 
+  const sortedFiltered = [...filtered].sort(
+    (a, b) => b.complianceScore - a.complianceScore
+  );
+
   const getRiskBadge = (level: SeverityLevel) => {
     switch (level) {
       case 'LOW':
@@ -173,7 +177,7 @@ export const BiddersView: React.FC<BiddersViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((bidder) => (
+              {sortedFiltered.map((bidder) => (
                 <tr
                   key={bidder.id}
                   onClick={() => onSelectBidder(bidder.id)}
