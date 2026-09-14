@@ -35,7 +35,8 @@ export type NavigationTab =
   | 'bidder-comparison'
   | 'collusion-signals'
   | 'audit-trail'
-  | 'reports';
+  | 'reports'
+  | 'decision-history';
 
 interface TopNavbarProps {
   activeTab: NavigationTab;
@@ -146,6 +147,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       id: 'reports' as NavigationTab,
       label: 'Evaluation Reports',
       icon: FileText,
+      badge: undefined,
+    },
+    {
+      id: 'decision-history' as NavigationTab,
+      label: 'Decision History',
+      icon: Scale,
       badge: undefined,
     },
   ];

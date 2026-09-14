@@ -43,11 +43,13 @@ import { ClarificationGeneratorModal } from './ClarificationGeneratorModal';
 
 import { WhatIfSimulatorModal } from './WhatIfSimulatorModal';
 import { HumanDecisionModal } from '../decision/HumanDecisionModal';
+import { DocumentVerificationResultPanel } from '../documents/DocumentVerificationResultPanel';
 import { documentService } from '../../services/documentService';
 import { complianceService } from '../../services/complianceService';
 import { riskService } from '../../services/riskService';
 import { auditService } from '../../services/auditService';
 import { verificationService } from '../../services/verificationService';
+import { decisionService } from '../../services/decisionService';
 import { useCurrentOfficer } from '../../context/OfficerContext';
 interface BidderProfileViewProps {
   bidder: Bidder;
@@ -77,7 +79,8 @@ export const BidderProfileView: React.FC<BidderProfileViewProps> = ({
     | 'audit'
   >('overview');
   const [uploading, setUploading] = useState(false);
-const [uploadResult, setUploadResult] = useState<{ extracted: any; verification: any } | null>(null);
+const [uploadResult, setUploadResult] = useState<{ extracted: any; verification: any; document_integrity?: { score: number; flags: string[] } } | null>(null);
+const [uploadToast, setUploadToast] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
 
   // Modal states
   const [inspectingDoc, setInspectingDoc] = useState<DocumentRecord | null>(null);
@@ -179,23 +182,77 @@ useEffect(() => {
   };
 }, [bidder.id]);
 
+  // Load any previously-recorded officer decision from the backend
+  // (officer_decisions.csv) so it survives a page refresh — the decision
+  // flow used to be entirely client-state, so a saved decision would
+  // silently vanish the moment the page reloaded.
+  useEffect(() => {
+    if (!bidder.id) return;
+    let cancelled = false;
+    decisionService.getDecision(bidder.id).then((decision) => {
+      if (cancelled || !decision) return;
+      // Only hydrate if we don't already have a (possibly newer) decision
+      // in memory, to avoid clobbering a decision just recorded this session.
+      if (!bidder.officerDecision) {
+        const status =
+          decision.decision === 'QUALIFIED'
+            ? ('Qualified' as const)
+            : decision.decision === 'DISQUALIFIED'
+            ? ('Disqualified' as const)
+            : decision.decision === 'CLARIFICATION_REQUESTED'
+            ? ('Clarification Requested' as const)
+            : ('Pending Review' as const);
+        onDecisionUpdated({ ...bidder, officerDecision: decision, status });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bidder.id]);
+
   const handleRunVerification = async () => {
     setIsRunningVerification(true);
-    setVerificationFeedback('Querying 10 simulated statutory & regulatory portals (GSTN, MCA-21, CVC, Udyam)...');
+    setVerificationFeedback('Querying real statutory portals (GST, PAN, Udyam, NSIC, Blacklist, EPFO/ESIC)...');
     try {
-      await verificationService.runFullVerificationBatch(bidder.id);
+      // Re-fetches the REAL backend checks (GET /verify/{bidder_id}) and
+      // refreshes both the Multi-Portal Checks and Document Vault tabs from
+      // that live result. Previously this called runFullVerificationBatch(),
+      // which ignored bidder.id entirely and always returned the same fake
+      // numbers — nothing on screen actually changed as a result.
+      const [freshSources, freshDocs] = await Promise.all([
+        verificationService.getSources(bidder.id),
+        documentService.getRealDocuments(bidder.id),
+      ]);
+      setSources(freshSources);
+      setDocuments(freshDocs);
+
+      const realSources = freshSources.filter((s) => !s.isSimulated);
+      const passed = realSources.filter((s) => s.verificationStatus === 'VERIFIED').length;
+      const warnings = realSources.filter((s) => s.verificationStatus === 'WARNING').length;
+      const discrepancies = realSources.filter((s) => s.matchStatus === 'DISCREPANCY').length;
+
       auditService.logEvent({
         actor: 'Procurement Officer (Initiated)',
         role: 'Procurement Officer',
         action: 'Manual Re-verification Trigger',
         source: 'CPCL Statutory Verification Engine',
         result: 'RECORDED',
-        evidenceRef: 'Batch ID: BATCH-VER-2026-99',
         bidderId: bidder.id,
-        comments: 'Officer re-executed automated cross-check across all 10 simulated official portals.',
+        comments: `Officer re-executed live cross-check across ${realSources.length} real statutory sources (GST/PAN/Udyam/NSIC/Blacklist/EPFO-ESIC).`,
       });
-      setVerificationFeedback('Multi-portal verification completed: 8 clear, 2 warnings, 1 discrepancy confirmed.');
-      setTimeout(() => setVerificationFeedback(null), 4000);
+
+      setVerificationFeedback(
+        `Verification refreshed: ${passed} passed, ${warnings} warning(s)` +
+          (discrepancies ? `, ${discrepancies} discrepancy(ies)` : '') +
+          ` across ${realSources.length} real sources (+2 unavailable — MCA-21, OEM — not tracked by backend yet).`
+      );
+      setTimeout(() => setVerificationFeedback(null), 6000);
+    } catch (err) {
+      setVerificationFeedback(
+        err instanceof Error ? `Verification refresh failed: ${err.message}` : 'Verification refresh failed.'
+      );
+      setTimeout(() => setVerificationFeedback(null), 6000);
     } finally {
       setIsRunningVerification(false);
     }
@@ -316,7 +373,9 @@ useEffect(() => {
               <div className="text-2xl font-bold text-slate-800 mt-0.5">
                 {bidder.verificationProgress}%
               </div>
-              <div className="text-xs text-slate-500 font-normal">10 Sources Checked</div>
+              <div className="text-xs text-slate-500 font-normal">
+                {isComplianceLoading ? 'Loading…' : `${sources.length} Source${sources.length === 1 ? '' : 's'} Checked`}
+              </div>
             </div>
           </div>
         </div>
@@ -374,7 +433,7 @@ useEffect(() => {
               <CheckCircle className="w-4 h-4 text-teal-700" />
               <span>{verificationFeedback}</span>
             </div>
-            <span className="font-mono text-xs text-teal-600">Simulated Batch</span>
+            <span className="font-mono text-xs text-teal-600">Live Verification</span>
           </div>
         )}
       </div>
@@ -425,59 +484,52 @@ useEffect(() => {
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                System Advisory: Further Review Recommended
+              <span className={`text-xs font-bold px-2 py-0.5 rounded border ${
+                contradictions.length > 0
+                  ? 'text-amber-800 bg-amber-50 border-amber-200'
+                  : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+              }`}>
+                {contradictions.length > 0 ? 'System Advisory: Further Review Recommended' : 'System Advisory: No Issues Flagged'}
               </span>
             </div>
 
             <p className="text-xs text-slate-700 leading-relaxed font-medium">
-              "This bidder has a generally strong compliance profile (87/100 score with clean debarment history),
-              but three critical issues require Procurement Officer review before commercial opening:"
+              {contradictions.length > 0
+                ? `This bidder has a compliance score of ${bidder.complianceScore}/100. ${contradictions.length} identified inconsistenc${contradictions.length === 1 ? 'y requires' : 'ies require'} Procurement Officer review before commercial opening:`
+                : `This bidder has a compliance score of ${bidder.complianceScore}/100 with no cross-document inconsistencies currently flagged.`}
             </p>
 
             <div className="space-y-2.5 pt-1">
-              {/* Item 1 */}
-              <div className="p-3 rounded bg-red-50/60 border border-red-200 text-xs">
-                <div className="flex items-center justify-between font-bold text-red-900">
-                  <span>1. Major Financial Turnover Discrepancy</span>
-                  <span className="text-[10px] uppercase bg-red-200 text-red-900 px-1.5 py-0.2 rounded">
-                    Critical Severity
-                  </span>
+              {[...contradictions]
+                .sort((a, b) => {
+                  const order: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+                  return (order[a.severity] ?? 4) - (order[b.severity] ?? 4);
+                })
+                .slice(0, 3)
+                .map((item, idx) => {
+                  const styles =
+                    item.severity === 'CRITICAL'
+                      ? { wrap: 'bg-red-50/60 border-red-200', title: 'text-red-900', badge: 'bg-red-200 text-red-900' }
+                      : item.severity === 'HIGH'
+                      ? { wrap: 'bg-amber-50/60 border-amber-200', title: 'text-amber-900', badge: 'bg-amber-200 text-amber-900' }
+                      : { wrap: 'bg-slate-50 border-slate-200', title: 'text-slate-800', badge: 'bg-slate-200 text-slate-700' };
+                  return (
+                    <div key={item.id} className={`p-3 rounded border ${styles.wrap} text-xs`}>
+                      <div className={`flex items-center justify-between font-bold ${styles.title}`}>
+                        <span>{idx + 1}. {item.field}</span>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.2 rounded ${styles.badge}`}>
+                          {item.severity} Severity
+                        </span>
+                      </div>
+                      <div className="text-slate-700 mt-1">{item.assessment}</div>
+                    </div>
+                  );
+                })}
+              {contradictions.length === 0 && (
+                <div className="text-xs text-slate-500 italic py-1">
+                  No cross-document inconsistencies detected for this bidder.
                 </div>
-                <div className="text-slate-700 mt-1">
-                  Declared turnover: <span className="font-semibold">₹18.40 Cr</span> (Form TECH-4) vs
-                  Verified audited turnover: <span className="font-semibold text-red-700">₹12.72 Cr</span> (Audited P&L Schedule 18 & MCA-21).
-                  While ₹12.72 Cr still exceeds the ₹10.00 Cr threshold, the unexplained 44.6% inflation requires formal CA reconciliation.
-                </div>
-              </div>
-
-              {/* Item 2 */}
-              <div className="p-3 rounded bg-amber-50/60 border border-amber-200 text-xs">
-                <div className="flex items-center justify-between font-bold text-amber-900">
-                  <span>2. OEM Authorization Early Expiry</span>
-                  <span className="text-[10px] uppercase bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded">
-                    High Severity
-                  </span>
-                </div>
-                <div className="text-slate-700 mt-1">
-                  Authorization letter from Kirloskar Flow Technologies Ltd. expires on <strong>28 Sep 2026</strong> (in 18 days),
-                  which terminates 2 days prior to the minimum tender bid validity requirement (<strong>30 Sep 2026</strong>).
-                </div>
-              </div>
-
-              {/* Item 3 */}
-              <div className="p-3 rounded bg-slate-50 border border-slate-200 text-xs">
-                <div className="flex items-center justify-between font-bold text-slate-800">
-                  <span>3. Legal Entity Naming Variation</span>
-                  <span className="text-[10px] uppercase bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">
-                    Low Severity
-                  </span>
-                </div>
-                <div className="text-slate-600 mt-1">
-                  Orthographic variations detected: "ABC Engineering Private Limited" (GST) vs "ABC Engineering Pvt Ltd" (Udyam) vs "ABC ENGINEERING PVT. LTD." (PAN).
-                  Verified identical CIN and registered premises in Bhosari MIDC, Pune.
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="pt-2 flex items-center justify-between text-xs text-slate-600 border-t border-amber-100">
@@ -645,9 +697,25 @@ useEffect(() => {
     setUploading(true);
     try {
       const result = await documentService.uploadCertificateForVerification(bidder.id, file);
-      setUploadResult(result); // naya state — Step 3 mein banayenge
+      setUploadResult(result);
+      const v = result.verification;
+      if (v.document_type === 'unknown') {
+        setUploadToast({ type: 'error', message: 'Document type could not be recognized — please check the file.' });
+      } else if (v.all_passed && !v.needs_review) {
+        setUploadToast({ type: 'success', message: `${v.document_type.toUpperCase()} certificate verified successfully.` });
+      } else if (v.all_passed && v.needs_review) {
+        setUploadToast({ type: 'warning', message: 'Passed, but this document needs officer review before it can be cleared.' });
+      } else {
+        const firstFailure = v.checks.find((c: any) => !c.passed);
+        setUploadToast({
+          type: 'error',
+          message: `Verification not passed${firstFailure?.detail ? `: ${firstFailure.detail}` : ' — see checklist below for details.'}`,
+        });
+      }
+      setTimeout(() => setUploadToast(null), 6000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Upload failed');
+      setUploadToast({ type: 'error', message: err instanceof Error ? err.message : 'Upload failed' });
+      setTimeout(() => setUploadToast(null), 6000);
     } finally {
       setUploading(false);
       setActiveTab('documents');
@@ -658,17 +726,24 @@ useEffect(() => {
             </label>
           </div>
           {uploadResult && (
-            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-sm space-y-2">
-              <div className="font-semibold">
-                Document Type: {uploadResult.extracted.document_type}
-              </div>
-              <pre className="text-xs overflow-x-auto">
-                {JSON.stringify(uploadResult.extracted, null, 2)}
-              </pre>
-              <div className="font-semibold">Verification Checks:</div>
-              <pre className="text-xs overflow-x-auto">
-                {JSON.stringify(uploadResult.verification, null, 2)}
-              </pre>
+            <DocumentVerificationResultPanel
+              extracted={uploadResult.extracted}
+              verification={uploadResult.verification}
+              documentIntegrity={uploadResult.document_integrity}
+            />
+          )}
+
+          {uploadToast && (
+            <div
+              className={`fixed bottom-6 right-6 z-50 max-w-sm p-4 rounded-lg shadow-lg border text-sm font-medium ${
+                uploadToast.type === 'success'
+                  ? 'bg-emerald-600 text-white border-emerald-700'
+                  : uploadToast.type === 'warning'
+                    ? 'bg-amber-500 text-white border-amber-600'
+                    : 'bg-red-600 text-white border-red-700'
+              }`}
+            >
+              {uploadToast.message}
             </div>
           )}
           {!isDocumentsLoading && documents.length === 0 && (
@@ -1089,22 +1164,34 @@ useEffect(() => {
               </div>
 
               <div className="space-y-2">
-                <div className="text-lg font-bold text-amber-900">
-                  "FURTHER REVIEW RECOMMENDED"
+                <div className={`text-lg font-bold ${contradictions.length > 0 ? 'text-amber-900' : 'text-emerald-800'}`}>
+                  {contradictions.length > 0 ? '"FURTHER REVIEW RECOMMENDED"' : '"NO ISSUES FLAGGED"'}
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Based on algorithmic assessment of 14 requirements, 10 portals, and 8 documents,
-                  qualification cannot proceed cleanly without resolution of 2 primary discrepancies.
+                  Based on algorithmic assessment of {requirements.length} requirement{requirements.length === 1 ? '' : 's'}, {sources.length} portal{sources.length === 1 ? '' : 's'}, and {documents.length} document{documents.length === 1 ? '' : 's'},
+                  qualification {contradictions.length > 0
+                    ? `cannot proceed cleanly without resolution of ${contradictions.length} identified discrepanc${contradictions.length === 1 ? 'y' : 'ies'}.`
+                    : 'has no outstanding discrepancies flagged for review.'}
                 </p>
               </div>
-
               <div className="p-3 bg-white rounded border border-slate-200 text-xs space-y-1.5">
                 <div className="font-bold text-slate-800">Identified Review Points:</div>
-                <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11px]">
-                  <li>Annual turnover declared in TECH-4 (₹18.4 Cr) exceeds verified audited P&L (₹12.7 Cr).</li>
-                  <li>OEM Authorization expires on 28 Sep 2026, falling short of tender validity (30 Sep 2026).</li>
-                  <li>July 2026 EPFO statutory challan pending submission.</li>
-                </ul>
+                {contradictions.length > 0 || expiries.some((e) => e.daysRemaining <= 60) ? (
+                  <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11px]">
+                    {contradictions.map((c) => (
+                      <li key={c.id}>{c.assessment}</li>
+                    ))}
+                    {expiries
+                      .filter((e) => e.daysRemaining <= 60)
+                      .map((e, idx) => (
+                        <li key={`exp-${idx}`}>
+                          {e.requirement} expires on {e.expiryDate} ({e.daysRemaining} days remaining).
+                        </li>
+                      ))}
+                  </ul>
+                ) : (
+                  <div className="text-[11px] text-slate-500 italic">No outstanding review points identified.</div>
+                )}
               </div>
 
               <div className="text-[10px] text-slate-400 italic">

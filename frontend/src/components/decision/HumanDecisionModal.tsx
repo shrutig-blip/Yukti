@@ -2,12 +2,37 @@ import React, { useState } from 'react';
 import { Scale, CheckCircle2, XCircle, Clock, Send, AlertTriangle, X, Shield } from 'lucide-react';
 import { Bidder, OfficerDecision } from '../../types';
 import { useCurrentOfficer } from '../../context/OfficerContext';
+import { decisionService } from '../../services/decisionService';
 
 interface HumanDecisionModalProps {
   bidder: Bidder;
   isOpen: boolean;
   onClose: () => void;
   onSubmitDecision: (decision: OfficerDecision) => void;
+}
+
+// Builds a starting-point justification from the bidder's REAL data flags,
+// instead of a fixed example string that described one specific bidder's
+// situation but was shown for every bidder regardless of their actual data.
+function buildDefaultJustification(bidder: Bidder): string {
+  const notes: string[] = [];
+  if (bidder.turnoverMismatch) {
+    notes.push(
+      `Declared turnover (₹${bidder.declaredTurnoverCr} Cr) differs from audited turnover (₹${bidder.auditedTurnoverCr} Cr) by more than the 2% tolerance.`
+    );
+  }
+  if (bidder.oemAuthorizationStatus === 'EXPIRED') {
+    notes.push(`OEM authorization expired on ${bidder.oemAuthorizationExpiry}.`);
+  } else if (bidder.oemAuthorizationStatus === 'EXPIRING_SOON') {
+    notes.push(`OEM authorization is expiring soon (${bidder.oemAuthorizationExpiry}).`);
+  }
+  if (bidder.criticalAlertsCount > 0) {
+    notes.push('A critical alert (blacklist/debarment match) was raised for this bidder.');
+  }
+  if (notes.length === 0 && bidder.discrepanciesCount > 0) {
+    notes.push(`${bidder.discrepanciesCount} statutory/eligibility check(s) did not pass — see Multi-Portal Checks and Anomaly Intelligence for details.`);
+  }
+  return notes.join(' ');
 }
 
 export const HumanDecisionModal: React.FC<HumanDecisionModalProps> = ({
@@ -20,28 +45,40 @@ export const HumanDecisionModal: React.FC<HumanDecisionModalProps> = ({
   const CURRENT_OFFICER = useCurrentOfficer();
   const [officerName, setOfficerName] = useState(CURRENT_OFFICER.name);
   const [officerDesignation, setOfficerDesignation] = useState(CURRENT_OFFICER.fullDesignation);
-  const [comments, setComments] = useState(
-    'Seeking formal reconciliation for declared ₹18.40 Cr turnover vs ₹12.72 Cr audited statement, and OEM authorization extension beyond tender deadline.'
-  );
-  const [conditions, setConditions] = useState('Subject to verified CA reconciliation certificate and OEM 90-day extension letter.');
+  const [comments, setComments] = useState(() => buildDefaultJustification(bidder));
+  const [conditions, setConditions] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!comments.trim()) return;
+    if (!comments.trim() || submitting) return;
 
-    const decisionRecord: OfficerDecision = {
-      decision: selectedDecision,
-      officerName,
-      officerDesignation,
-      timestamp: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' IST',
-      comments,
-      conditionsOrStipulations: conditions,
-    };
-
-    onSubmitDecision(decisionRecord);
-    onClose();
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      // Actually persists to the backend (officer_decisions.csv) — this
+      // used to only build a local object and never call the API, so
+      // decisions were lost on every page refresh.
+      const decisionRecord = await decisionService.submitDecision(
+        bidder.id,
+        selectedDecision,
+        officerName,
+        officerDesignation,
+        comments,
+        conditions || undefined
+      );
+      onSubmitDecision(decisionRecord);
+      onClose();
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : 'Failed to record decision — please try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -208,19 +245,27 @@ export const HumanDecisionModal: React.FC<HumanDecisionModalProps> = ({
           </div>
 
           <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+            {submitError && (
+              <div className="flex-1 flex items-center text-xs text-red-600 gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {submitError}
+              </div>
+            )}
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 border border-slate-300 rounded text-slate-700 hover:bg-slate-50 font-medium"
+              disabled={submitting}
+              className="px-4 py-1.5 border border-slate-300 rounded text-slate-700 hover:bg-slate-50 font-medium disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-1.5 bg-[#102A43] hover:bg-slate-800 text-white rounded font-bold shadow-xs flex items-center space-x-1.5"
+              disabled={submitting}
+              className="px-5 py-1.5 bg-[#102A43] hover:bg-slate-800 text-white rounded font-bold shadow-xs flex items-center space-x-1.5 disabled:opacity-60"
             >
               <Scale className="w-3.5 h-3.5 text-teal-400" />
-              <span>Record Statutory Decision</span>
+              <span>{submitting ? 'Recording...' : 'Record Statutory Decision'}</span>
             </button>
           </div>
         </form>

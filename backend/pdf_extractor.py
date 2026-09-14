@@ -220,3 +220,173 @@ def extract_certificate_fields(text: str) -> dict:
     elif cert_type == "epfo":
         return {"document_type": "epfo", **extract_epfo_certificate_fields(text)}
     return {"document_type": "unknown"}
+
+
+# ---------------------------------------------------------------------------
+# Document integrity analysis (real, metadata/structure-based — not ML)
+# ---------------------------------------------------------------------------
+# HONESTY NOTE: this is NOT a forgery-detection model and does not claim to
+# "prove" a document is fake. It surfaces genuinely-observable structural and
+# metadata signals — the same category of check used by real PDF-forensics
+# tools (e.g. checking CreationDate vs ModDate drift, producer software, and
+# incremental-save/xref-repair markers is standard practice in tools like
+# pdfchecker/pdfid). Every flag below is something a person could verify
+# themselves by inspecting the raw PDF bytes — nothing here is inferred by a
+# trained model or guessed.
+#
+# Design principle carried over from verify_bidder_credentials(): missing
+# metadata is NOT treated as suspicious. Many legitimate government-portal
+# PDFs strip metadata entirely — absence of a signal produces no flag, only
+# a *positive, present* signal (e.g. a large date gap, a repaired xref
+# table) produces one. This avoids penalizing clean documents that simply
+# lack rich metadata.
+
+from datetime import datetime as _datetime
+
+_PDF_DATE_RE = re.compile(
+    r"D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?"
+)
+
+def _parse_pdf_date(value):
+    """Parses PDF date strings like 'D:20260601120000+05'30''. Returns None
+    (not an error) for missing/unparseable dates — see honesty note above."""
+    if not value:
+        return None
+    match = _PDF_DATE_RE.search(str(value))
+    if not match:
+        return None
+    year, month, day, hour, minute, second = match.groups()
+    try:
+        return _datetime(
+            int(year), int(month), int(day),
+            int(hour or 0), int(minute or 0), int(second or 0),
+        )
+    except ValueError:
+        return None
+
+
+# Software commonly used to EDIT an already-issued PDF (as opposed to
+# software that GENERATES one from a government portal template). Presence
+# of one of these in Producer/Creator is a real, checkable signal that the
+# file passed through a general-purpose editor after its original creation —
+# not proof of tampering by itself, but worth an officer's attention.
+_SUSPICIOUS_EDITOR_KEYWORDS = [
+    "photoshop", "illustrator", "gimp", "paint.net", "snagit",
+    "pdf-xchange editor", "foxit phantompdf editor", "nitro pro",
+    "ilovepdf", "smallpdf", "sejda", "canva",
+]
+
+# Fonts beyond this count on a single page is unusual for a template-
+# generated single-issuer certificate (most use 1-2 fonts throughout).
+_MAX_EXPECTED_FONTS_PER_PAGE = 3
+# Pages with fewer real characters than this are likely scanned images —
+# font analysis on them would be meaningless, so they're skipped rather
+# than flagged.
+_MIN_CHARS_FOR_FONT_CHECK = 20
+
+
+def analyze_document_integrity(pdf_path: str) -> dict:
+    """Real, metadata/structure-based integrity signals for an uploaded
+    certificate PDF. Returns {"score": int 0-100, "flags": [str, ...]} —
+    matches the shape documentService.ts already expects from
+    result.document_integrity, so no frontend changes are needed to
+    consume this once wired into the /verify/{bidder_id}/certificate route.
+
+    score starts at 100 and is reduced for each independently-verifiable
+    signal found. A clean document with no metadata at all still scores
+    100 — absence of metadata is never itself a deduction (see module note).
+    """
+    flags = []
+    score = 100
+
+    # --- Metadata: CreationDate vs ModDate drift + producer/creator check ---
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            meta = pdf.metadata or {}
+    except Exception:
+        meta = {}
+
+    created = _parse_pdf_date(meta.get("CreationDate"))
+    modified = _parse_pdf_date(meta.get("ModDate"))
+    if created and modified and modified > created:
+        gap_days = (modified - created).days
+        if gap_days >= 1:
+            flags.append(
+                f"Document was modified {gap_days} day(s) after creation "
+                f"(Created: {created.date()}, Modified: {modified.date()})."
+            )
+            score -= 35 if gap_days >= 30 else 20
+
+    producer = f"{meta.get('Producer', '')} {meta.get('Creator', '')}".lower()
+    matched_editor = next((kw for kw in _SUSPICIOUS_EDITOR_KEYWORDS if kw in producer), None)
+    if matched_editor:
+        flags.append(
+            f"Document metadata indicates it was processed with '{matched_editor}', "
+            "a general-purpose editing tool not typically used to issue official certificates."
+        )
+        score -= 25
+
+    # --- Structural: incremental updates (edited after being finalized) ---
+    # A PDF gets one "%%EOF" marker per save. More than one means the file
+    # was saved, then re-opened and saved again — i.e. edited after its
+    # first finalized version. This is a raw byte-level fact, not an
+    # inference — no library needed beyond reading the file.
+    try:
+        with open(pdf_path, "rb") as f:
+            raw = f.read()
+        eof_count = raw.count(b"%%EOF")
+        if eof_count > 1:
+            extra_saves = eof_count - 1
+            flags.append(
+                f"Document contains {extra_saves} incremental update(s) after its "
+                "initial save — the file was re-saved/edited after being finalized."
+            )
+            score -= min(30, extra_saves * 10)
+    except Exception:
+        pass
+
+    # --- Structural: MuPDF-detected xref repair ---
+    # MuPDF silently repairs a broken/corrupted cross-reference table when
+    # opening a malformed PDF, and records that it had to do so. A PDF
+    # needing xref repair is a genuine structural-integrity red flag —
+    # normal, untampered PDFs never trigger this.
+    try:
+        import pymupdf as fitz
+        fitz.TOOLS.mupdf_warnings()  # clear any stale buffer first
+        doc = fitz.open(pdf_path)
+        doc.close()
+        warnings = fitz.TOOLS.mupdf_warnings()
+        if warnings and ("repair" in warnings.lower() or "broken xref" in warnings.lower()):
+            flags.append(
+                "PDF structure required repair to open (broken/corrupted cross-reference table) — "
+                "a strong indicator of file corruption or low-level tampering."
+            )
+            score -= 35
+    except Exception:
+        pass
+
+    # --- Font consistency ---
+    # Government-portal-generated certificates are template PDFs and
+    # normally use 1-2 fonts throughout. A page with unusually many distinct
+    # fonts often means a field (like a date or name) was pasted in from a
+    # different source. Pages with very little real text (likely scanned
+    # images) are skipped — font analysis is meaningless there.
+    try:
+        flagged_pages = []
+        with pdfplumber.open(pdf_path) as pdf:
+            for i, page in enumerate(pdf.pages, start=1):
+                chars = page.chars
+                if len(chars) < _MIN_CHARS_FOR_FONT_CHECK:
+                    continue
+                fonts = {c["fontname"] for c in chars if c.get("fontname")}
+                if len(fonts) > _MAX_EXPECTED_FONTS_PER_PAGE:
+                    flagged_pages.append((i, sorted(fonts)))
+        if flagged_pages:
+            page_desc = "; ".join(f"page {p} uses {len(f)} fonts" for p, f in flagged_pages)
+            flags.append(f"Unusually high font variety detected — {page_desc}.")
+            score -= 15
+    except Exception:
+        pass
+
+    score = max(0, min(100, score))
+    return {"score": score, "flags": flags}
