@@ -11,6 +11,7 @@ import { CollusionSignalsView } from './components/tenders/collusionSignalsView'
 import { ComplianceAnalysisView } from './components/compliance/ComplianceAnalysisView';
 import { ComplianceReportView } from './components/reports/ComplianceReportView';
 import { AuditTrailView } from './components/audit/AuditTrailView';
+import { DecisionHistoryView } from './components/decision/DecisionHistoryView';
 import { LoginView } from './components/auth/LoginView';
 import { OfficerProvider, useOfficerContext } from './context/OfficerContext';
 import { OfficerSelectView } from './components/officer/OfficerSelectView';
@@ -301,6 +302,10 @@ function AppContent() {
 
         {activeTab === 'audit-trail' && (
           <AuditTrailView onSelectBidder={handleSelectBidder} />
+        )}
+
+        {activeTab === 'decision-history' && (
+          <DecisionHistoryView onSelectBidder={handleSelectBidder} />
         )}
       </main>
 

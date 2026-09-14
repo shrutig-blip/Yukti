@@ -1157,3 +1157,27 @@ def get_collusion_signals(tender_id: str):
         "edges": edges,
         "flagged_clusters": flagged_clusters,
     }
+
+# ---------------------------------------------------------------------------
+# All decisions history (across every bidder) — powers a single "Decision
+# History" list view instead of only showing one bidder's latest decision.
+# ---------------------------------------------------------------------------
+def get_all_decisions():
+    """Every officer decision ever recorded, across all bidders, newest
+    first — each row enriched with the bidder's company name and tender
+    context isn't stored per-decision, so only bidder_id/company_name is
+    attached here (a decision isn't tied to one specific tender in the
+    current schema)."""
+    if officer_decisions_df.empty:
+        return []
+
+    records = []
+    for _, row in officer_decisions_df.iterrows():
+        bidder = get_bidder_by_id(row["bidder_id"])
+        records.append({
+            **_clean_nan(row.to_dict()),
+            "bidder_name": bidder["company_name"] if bidder else row["bidder_id"],
+        })
+
+    records.sort(key=lambda r: r["timestamp"], reverse=True)
+    return records
