@@ -1,4 +1,4 @@
-import { apiGet } from './apiClient';
+import { apiGet, apiPostForm } from './apiClient';
 import { Tender, TenderRequirement, SeverityLevel } from '../types';
 
 /**
@@ -7,10 +7,16 @@ import { Tender, TenderRequirement, SeverityLevel } from '../types';
  * Backend `tender_criteria.csv` fields -> frontend `Tender` fields:
  *   tender_id     -> id
  *   tender_title  -> title (real)
- *   department, deadline, estimatedValue, extractedDate -> NOT tracked by
- *     the backend at all. Rather than inventing plausible-looking values,
- *     these are explicitly set to the literal string 'Not tracked by backend'
- *     so it's visually obvious in the UI that no real data exists for them.
+ *   department, deadline, estimatedValue -> real, straight from
+ *     tender_criteria.csv.
+ *   extractedDate -> real, from tender_criteria.csv's extracted_date column.
+ *     This is null until someone actually uploads a NIT PDF for the tender
+ *     via extractTenderDocument() below (POST /tender/{id}/extract), which
+ *     runs the file through the backend's real PDF text extraction and only
+ *     persists a timestamp if that extraction actually succeeds. It is NOT
+ *     invented or defaulted to "now" — a tender with no upload yet stays
+ *     null, and the UI should render that as "Not yet extracted" rather
+ *     than inventing a date.
  *   description   -> composed (not invented) from the real criteria fields:
  *     min turnover, min local content %, allowed categories, MSME-only,
  *     startup relaxation. Every number in it comes straight from
@@ -54,6 +60,7 @@ interface RawTenderCriteria {
   department: string;
   deadline: string;
   estimated_value_cr: number;
+  extracted_date: string | null;
 }
 
 interface RawBid {
@@ -65,8 +72,6 @@ interface RawBid {
 interface RawComplianceResult {
   risk_level: SeverityLevel;
 }
-
-const NOT_TRACKED = 'Not tracked by backend';
 
 function nowFormatted(): string {
   return (
@@ -219,7 +224,7 @@ class TenderService {
           overallStatus,
           description: buildDescription(c),
           requirementsCount: requirements.length,
-          extractedDate: NOT_TRACKED,
+          extractedDate: c.extracted_date,
         };
       })
     );
@@ -266,22 +271,44 @@ class TenderService {
       verifiedCount: 0,
       pendingCount: 0,
       overallStatus: 'Pending Verification',
-      extractedDate: nowFormatted(),
+      extractedDate: null,
     };
     this.tendersCache.unshift(newTender);
     this.requirementsCache.set(newTender.id, []);
     return newTender;
   }
 
-  public async simulateRequirementExtraction(
+  /**
+   * Real replacement for the old simulateRequirementExtraction(): uploads an
+   * actual NIT PDF to POST /tender/{tenderId}/extract, which runs it through
+   * the backend's real PDF text extraction and — only if that succeeds —
+   * persists a real extracted_date. Updates the in-memory tender cache so
+   * "Extracted: ..." reflects the real value without a full reload.
+   *
+   * SCOPE NOTE: this does not turn the PDF into new requirement rows — the
+   * requirements checklist is still built from tender_criteria's real
+   * eligibility fields (buildRequirements above). This only proves and
+   * timestamps that a document was uploaded and was actually readable.
+   */
+  public async extractTenderDocument(
     tenderId: string,
-    fileName: string
-  ): Promise<{ extractedCount: number; confirmationNeeded: number }> {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    return {
-      extractedCount: 14,
-      confirmationNeeded: 2,
-    };
+    file: File
+  ): Promise<{ tender_id: string; filename: string; extracted_date: string; text_length: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const result = await apiPostForm<{
+      tender_id: string;
+      filename: string;
+      extracted_date: string;
+      text_length: number;
+    }>(`/tender/${tenderId}/extract`, formData);
+
+    const cached = this.tendersCache.find((t) => t.id === tenderId);
+    if (cached) {
+      cached.extractedDate = result.extracted_date;
+    }
+
+    return result;
   }
 }
 

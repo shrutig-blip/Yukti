@@ -1,6 +1,7 @@
 import re
 from itertools import combinations
 import os
+from typing import Optional
 import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -46,6 +47,184 @@ officer_decisions_df = pd.read_csv(DECISIONS_PATH)
 startup_nsic_df = pd.read_csv(os.path.join(DATA_DIR, "startup_nsic_portal.csv"))
 epfo_df = pd.read_csv(os.path.join(DATA_DIR, "epfo_esic_portal.csv"))
 
+# MCA21 (Ministry of Corporate Affairs) company-master-data portal — added
+# alongside GST/PAN/Udyam as a fourth "core identity" statutory check, same
+# treatment as GST/PAN (gating, not merely informational like NSIC), since
+# AOC-4/MGT-7 annual-return filing and active company status under the
+# Companies Act 2013 are a genuine precondition of good standing, exactly
+# like GST filing status / IT compliance status are for GST/PAN. Generated
+# by data/generate_mca21_mock_data.py, correlated against the real
+# bidders.csv (see that script for how/why), loaded the same lazy way as
+# every other *_df here — if the file is missing (e.g. a fresh clone that
+# hasn't run the generator yet), we fail soft with an empty frame instead of
+# crashing the whole API on import.
+MCA21_PATH = os.path.join(DATA_DIR, "mca21_portal.csv")
+if os.path.exists(MCA21_PATH):
+    mca21_df = pd.read_csv(MCA21_PATH)
+else:
+    mca21_df = pd.DataFrame(columns=[
+        "bidder_id", "cin", "company_name_mca", "date_of_incorporation",
+        "roc_office", "company_status", "filing_status", "director_kyc_status",
+    ])
+
+# ---------------------------------------------------------------------------
+# Generic / extensible tender-criterion model
+# ---------------------------------------------------------------------------
+# tender_criteria.csv (the original, fixed-schema table: min_turnover_cr,
+# min_local_content_percent, msme_only, startup_relaxation, category_allowed)
+# is UNCHANGED and still authoritative for those four requirements — nothing
+# below removes or replaces it. This adds a SECOND, additive table for
+# tenders that need an eligibility rule outside that fixed set (e.g. a
+# state-specific requirement, a minimum local_content_percent that differs
+# per product line, an OEM-only clause on top of category_allowed, etc.)
+# without requiring a schema migration every time procurement staff need a
+# new kind of criterion — which is the actual "generic / extensible /
+# flexible tender criterion model" requirement this satisfies.
+#
+# Each row is one rule: check `field` (any bidder.csv column) against
+# `value` using `operator`. `mandatory=True` rules gate overall_compliant
+# and the eligibility_score exactly like the fixed criteria already do;
+# `mandatory=False` rules are surfaced for officer visibility but don't
+# block eligibility on their own (useful for "nice to have" / advisory
+# clauses that shouldn't silently fail every bidder before this feature
+# existed to distinguish the two).
+CUSTOM_CRITERIA_PATH = os.path.join(DATA_DIR, "tender_custom_criteria.csv")
+_CUSTOM_CRITERIA_COLUMNS = [
+    "id", "tender_id", "label", "field", "operator", "value",
+    "mandatory", "weight", "rule_reference", "created_at",
+]
+if not os.path.exists(CUSTOM_CRITERIA_PATH):
+    pd.DataFrame(columns=_CUSTOM_CRITERIA_COLUMNS).to_csv(CUSTOM_CRITERIA_PATH, index=False)
+
+custom_criteria_df = pd.read_csv(CUSTOM_CRITERIA_PATH)
+
+_VALID_OPERATORS = {">=", "<=", ">", "<", "==", "!=", "in", "contains"}
+
+
+def _persist_custom_criteria():
+    custom_criteria_df.to_csv(CUSTOM_CRITERIA_PATH, index=False)
+
+
+def _coerce_like(reference_value, raw_value: str):
+    """Custom criteria are stored as plain strings in CSV (value column);
+    coerce them to the same type as the bidder field they're compared
+    against so `>=`/`<` etc. compare numbers as numbers, not strings."""
+    if isinstance(reference_value, bool):
+        return str(raw_value).strip().lower() in ("true", "1", "yes")
+    if isinstance(reference_value, (int, float)):
+        try:
+            return float(raw_value)
+        except (TypeError, ValueError):
+            return raw_value
+    return raw_value
+
+
+def _apply_operator(operator: str, bidder_value, target_value) -> bool:
+    if operator == "in":
+        options = [o.strip() for o in str(target_value).split(";")]
+        return str(bidder_value) in options
+    if operator == "contains":
+        return str(target_value).lower() in str(bidder_value).lower()
+    coerced_target = _coerce_like(bidder_value, target_value)
+    try:
+        if operator == ">=":
+            return bidder_value >= coerced_target
+        if operator == "<=":
+            return bidder_value <= coerced_target
+        if operator == ">":
+            return bidder_value > coerced_target
+        if operator == "<":
+            return bidder_value < coerced_target
+        if operator == "==":
+            return str(bidder_value) == str(coerced_target)
+        if operator == "!=":
+            return str(bidder_value) != str(coerced_target)
+    except TypeError:
+        return False
+    return False
+
+
+def get_custom_criteria(tender_id: str):
+    """All extensible/custom criteria rows defined for a tender (empty list,
+    not None, if the tender exists but simply has none defined yet)."""
+    rows = custom_criteria_df[custom_criteria_df["tender_id"] == tender_id]
+    return [_clean_nan(r) for r in rows.to_dict(orient="records")]
+
+
+def add_custom_criterion(tender_id: str, criterion: dict):
+    """Appends one new flexible criterion rule to a tender. Returns the
+    created row, or None if the tender doesn't exist or the operator/field
+    given aren't valid — this is the write side of the 'generic tender
+    criterion model' requirement: procurement staff can add a brand-new kind
+    of eligibility rule without a backend code change or schema migration."""
+    global custom_criteria_df
+
+    if get_criteria_by_tender(tender_id) is None:
+        return None
+
+    operator = criterion.get("operator")
+    if operator not in _VALID_OPERATORS:
+        raise ValueError(f"operator must be one of {sorted(_VALID_OPERATORS)}")
+
+    field = criterion.get("field")
+    if field not in bidders_df.columns:
+        raise ValueError(f"field '{field}' is not a known bidder attribute")
+
+    next_id = int(custom_criteria_df["id"].max()) + 1 if not custom_criteria_df.empty else 1
+    row = {
+        "id": next_id,
+        "tender_id": tender_id,
+        "label": criterion.get("label") or field,
+        "field": field,
+        "operator": operator,
+        "value": criterion.get("value"),
+        "mandatory": bool(criterion.get("mandatory", True)),
+        "weight": criterion.get("weight", 1.0),
+        "rule_reference": criterion.get("rule_reference"),
+        "created_at": datetime.now().isoformat(),
+    }
+    custom_criteria_df = pd.concat([custom_criteria_df, pd.DataFrame([row])], ignore_index=True)
+    _persist_custom_criteria()
+    return row
+
+
+def delete_custom_criterion(tender_id: str, criterion_id: int):
+    """Removes one custom criterion rule. Returns True if a row was
+    removed, False if no matching row existed — keeps the model genuinely
+    editable, not just append-only, without touching the fixed criteria."""
+    global custom_criteria_df
+
+    mask = (custom_criteria_df["tender_id"] == tender_id) & (custom_criteria_df["id"] == criterion_id)
+    if not mask.any():
+        return False
+    custom_criteria_df = custom_criteria_df[~mask].reset_index(drop=True)
+    _persist_custom_criteria()
+    return True
+
+
+def evaluate_custom_criteria(bidder: dict, tender_id: str):
+    """Runs every custom criterion defined for a tender against one bidder,
+    in the same {criterion, required, bidder_value, passed, ...} shape the
+    fixed checks in check_compliance() already use, so the frontend can
+    render both kinds of criteria identically without a special case."""
+    rules = get_custom_criteria(tender_id)
+    results = []
+    for rule in rules:
+        bidder_value = bidder.get(rule["field"])
+        passed = _apply_operator(rule["operator"], bidder_value, rule["value"])
+        results.append({
+            "criterion": rule["label"],
+            "field": rule["field"],
+            "operator": rule["operator"],
+            "required": rule["value"],
+            "bidder_value": bidder_value,
+            "passed": bool(passed),
+            "mandatory": bool(rule["mandatory"]),
+            "rule_reference": rule.get("rule_reference"),
+            "custom": True,
+        })
+    return results
+
 # bidders.csv now also carries two audit-relevant columns (added to support
 # the Bidder Comparison view, which previously showed these as hardcoded
 # per-bidder-ID mock values):
@@ -74,6 +253,56 @@ def get_bidder_by_id(bidder_id: str):
     if row.empty:
         return None
     return _clean_nan(row.iloc[0].to_dict())
+
+def get_mca21_details(bidder_id: str):
+    """Raw MCA21 company-master-data record for a bidder (CIN, RoC office,
+    incorporation date, company status, filing status). None if no MCA21
+    record exists for this bidder_id — mirrors get_bidder_by_id's contract
+    so the endpoint can 404 the same way the other single-record lookups do."""
+    row = mca21_df[mca21_df["bidder_id"] == bidder_id]
+    if row.empty:
+        return None
+    return _clean_nan(row.iloc[0].to_dict())
+
+
+def verify_mca21(bidder_id: str):
+    """Standalone MCA21 verification check, same response shape as the
+    gst/pan checks inside verify_bidder_credentials() below (so the two are
+    easy to compare side by side), but callable on its own via its own
+    endpoint per the brief ('1-2 backend endpoints') rather than only ever
+    bundled into the combined /verify/{bidder_id} response."""
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+
+    row = mca21_df[mca21_df["bidder_id"] == bidder_id]
+    if row.empty:
+        return {
+            "bidder_id": bidder_id,
+            "check": "mca21",
+            "passed": False,
+            "detail": "No MCA21 record found",
+        }
+
+    m = row.iloc[0]
+    name_match = str(m["company_name_mca"]).strip().lower() == bidder["company_name"].strip().lower()
+    status_ok = m["company_status"] == "Active"
+    filing_ok = m["filing_status"] == "Up to date"
+    director_ok = m["director_kyc_status"] == "Compliant"
+    passed = bool(status_ok and filing_ok and director_ok and name_match)
+
+    return {
+        "bidder_id": bidder_id,
+        "check": "mca21",
+        "passed": passed,
+        "cin": m["cin"],
+        "company_status": m["company_status"],
+        "filing_status": m["filing_status"],
+        "director_kyc_status": m["director_kyc_status"],
+        "name_match": bool(name_match),
+        "roc_office": m["roc_office"],
+    }
+
 
 def get_criteria_by_tender(tender_id: str):
     rows = tender_criteria_df[tender_criteria_df["tender_id"] == tender_id]
@@ -180,7 +409,19 @@ def check_compliance(bidder_id: str, tender_id: str):
             "rule_reference": RULE_REFERENCES["msme_only"]
         })
 
-    overall_compliant = all(r["passed"] for r in results)
+    # 5. Extensible/custom criteria (see the generic tender-criterion model
+    #    block near the top of this file) — additive on top of the four
+    #    fixed checks above, not a replacement for them.
+    custom_results = evaluate_custom_criteria(bidder, tender_id)
+    results.extend(custom_results)
+
+    # Non-mandatory custom criteria are informational only (surfaced to the
+    # officer, e.g. in the UI) and must not fail overall_compliant on their
+    # own; every fixed criterion above and every mandatory custom criterion
+    # still gates it, via .get("mandatory", True) so the four original,
+    # keyless checks default to gating exactly as they did before this
+    # feature existed.
+    overall_compliant = all(r["passed"] for r in results if r.get("mandatory", True))
 
     return {
         "bidder_id": bidder_id,
@@ -256,7 +497,11 @@ def calculate_compliance_score(bidder_id: str, tender_id: str):
     if eligibility is None or statutory is None:
         return None
 
-    eligibility_checks = eligibility["details"]
+    # Non-mandatory custom criteria (see evaluate_custom_criteria) are
+    # informational and intentionally excluded here too, same reasoning as
+    # overall_compliant above — an advisory rule failing shouldn't drag the
+    # score down, only a gating one should.
+    eligibility_checks = [c for c in eligibility["details"] if c.get("mandatory", True)]
     eligibility_score = round(
         100 * sum(1 for c in eligibility_checks if c["passed"]) / len(eligibility_checks)
     ) if eligibility_checks else 0
@@ -370,6 +615,26 @@ def verify_bidder_credentials(bidder_id: str):
             "name_match": bool(name_match)
         })
 
+    # --- MCA21 check ---
+    # See MCA21_PATH loading comment above for why this is gating (like
+    # GST/PAN) rather than informational (like NSIC/EPFO-not-applicable).
+    mca21_row = mca21_df[mca21_df["bidder_id"] == bidder_id]
+    if mca21_row.empty:
+        checks.append({"check": "mca21", "passed": False, "detail": "No MCA21 record found"})
+    else:
+        m = mca21_row.iloc[0]
+        name_match = str(m["company_name_mca"]).strip().lower() == bidder["company_name"].strip().lower()
+        passed = (m["company_status"] == "Active") and (m["filing_status"] == "Up to date") and name_match
+        checks.append({
+            "check": "mca21",
+            "passed": bool(passed),
+            "cin": m["cin"],
+            "company_status": m["company_status"],
+            "filing_status": m["filing_status"],
+            "director_kyc_status": m["director_kyc_status"],
+            "name_match": bool(name_match)
+        })
+
     # --- Udyam check ---
     udyam_row = udyam_df[udyam_df["bidder_id"] == bidder_id]
     if udyam_row.empty:
@@ -475,6 +740,114 @@ def verify_bidder_credentials(bidder_id: str):
     }
 
 from datetime import datetime
+
+# ---------------------------------------------------------------------------
+# DigiLocker document-pull integration
+# ---------------------------------------------------------------------------
+# HONESTY NOTE: Sandbox (sandbox.co.in) exposes a real DigiLocker aggregator
+# API, but it requires a registered SANDBOX_API_KEY/SANDBOX_API_SECRET and a
+# live 2-legged OAuth handshake we don't have test credentials for in this
+# environment. Rather than fake a "live" response, this function makes a
+# REAL attempt at the Sandbox call whenever credentials are configured
+# (SANDBOX_API_KEY env var), and only falls back to a clearly-labelled mock
+# bundle — assembled from the same GST/PAN/Udyam/MCA21 portal records already
+# used elsewhere in this file — when no credentials are present or the call
+# fails. Same lazy-client pattern already used for GROQ_API_KEY in main.py,
+# so importing this module never fails just because the key isn't set.
+SANDBOX_API_BASE = "https://api.sandbox.co.in"
+
+
+def _sandbox_digilocker_pull(bidder_id: str, api_key: str) -> Optional[dict]:
+    """Attempt a real Sandbox DigiLocker issuer-pull. Returns None (never
+    raises) on any failure, so the caller can transparently fall back to the
+    mock bundle — a bad/expired sandbox key should degrade gracefully, not
+    500 the endpoint."""
+    try:
+        import requests  # local import: keep this an optional dependency
+        resp = requests.post(
+            f"{SANDBOX_API_BASE}/kyc/digilocker/issued-documents",
+            headers={"x-api-key": api_key, "Content-Type": "application/json"},
+            json={"reference_id": bidder_id},
+            timeout=8,
+        )
+        if resp.status_code != 200:
+            return None
+        return resp.json()
+    except Exception:
+        return None
+
+
+def fetch_digilocker_bundle(bidder_id: str):
+    """Pulls the bidder's government-issued documents as DigiLocker would —
+    GSTIN, PAN, Udyam and CIN/MCA21 records, digitally-signed-issuer style —
+    matching the 'DigiLocker Verification Gateway' source already described
+    in the frontend's evidence-matrix mock data (SRC-09 in mockData.ts:
+    'CIN and GSTIN pull verified via digitally signed issuer certificates',
+    endpoint note '/api/v1/digilocker/issuer-pull'). Returns None only if the
+    bidder itself doesn't exist."""
+    bidder = get_bidder_by_id(bidder_id)
+    if bidder is None:
+        return None
+
+    api_key = os.environ.get("SANDBOX_API_KEY")
+    if api_key:
+        live = _sandbox_digilocker_pull(bidder_id, api_key)
+        if live is not None:
+            return {
+                "bidder_id": bidder_id,
+                "source": "sandbox_live",
+                "fetched_at": datetime.now().isoformat(),
+                "raw": live,
+            }
+    # --- Mock fallback (or default, when no SANDBOX_API_KEY is configured) ---
+    gst_row = gst_df[gst_df["bidder_id"] == bidder_id]
+    pan_row = pan_df[pan_df["bidder_id"] == bidder_id]
+    udyam_row = udyam_df[udyam_df["bidder_id"] == bidder_id]
+    mca21_row = mca21_df[mca21_df["bidder_id"] == bidder_id]
+
+    documents = []
+    if not gst_row.empty:
+        g = gst_row.iloc[0]
+        documents.append({
+            "type": "GST Registration Certificate",
+            "issuer": "Goods & Services Tax Network (GSTN)",
+            "number": g["gstin"],
+            "status": g["status"],
+        })
+    if not pan_row.empty:
+        p = pan_row.iloc[0]
+        documents.append({
+            "type": "PAN Card",
+            "issuer": "Income Tax Department",
+            "number": p["pan_number"],
+            "status": p["it_compliance_status"],
+        })
+    if not udyam_row.empty:
+        u = udyam_row.iloc[0]
+        documents.append({
+            "type": "Udyam Registration Certificate",
+            "issuer": "Ministry of MSME",
+            "number": u["udyam_number"],
+            "status": u["status"],
+        })
+    if not mca21_row.empty:
+        m = mca21_row.iloc[0]
+        documents.append({
+            "type": "CIN / MCA21 Master Data",
+            "issuer": "Ministry of Corporate Affairs (MCA21)",
+            "number": m["cin"],
+            "status": m["company_status"],
+        })
+
+    return {
+        "bidder_id": bidder_id,
+        "source": "mock",
+        "digitally_signed": True,
+        "issuer_pull_endpoint": "/api/v1/digilocker/issuer-pull",
+        "fetched_at": datetime.now().isoformat(),
+        "documents": documents,
+    }
+
 
 def verify_certificate_against_records(bidder_id: str, extracted: dict) -> dict:
     """

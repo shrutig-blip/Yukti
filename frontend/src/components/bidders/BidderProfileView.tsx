@@ -49,6 +49,7 @@ import { complianceService } from '../../services/complianceService';
 import { riskService } from '../../services/riskService';
 import { auditService } from '../../services/auditService';
 import { verificationService } from '../../services/verificationService';
+import { digilockerService, DigilockerBundle } from '../../services/digilockerService';
 import { decisionService } from '../../services/decisionService';
 import { useCurrentOfficer } from '../../context/OfficerContext';
 interface BidderProfileViewProps {
@@ -91,6 +92,9 @@ const [uploadToast, setUploadToast] = useState<{ type: 'success' | 'warning' | '
   // Verification batch running state
   const [isRunningVerification, setIsRunningVerification] = useState(false);
   const [verificationFeedback, setVerificationFeedback] = useState<string | null>(null);
+  const [isFetchingDigilocker, setIsFetchingDigilocker] = useState(false);
+  const [digilockerFeedback, setDigilockerFeedback] = useState<string | null>(null);
+  const [digilockerBundle, setDigilockerBundle] = useState<DigilockerBundle | null>(null);
 
   // Data fetching
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -245,7 +249,7 @@ useEffect(() => {
       setVerificationFeedback(
         `Verification refreshed: ${passed} passed, ${warnings} warning(s)` +
           (discrepancies ? `, ${discrepancies} discrepancy(ies)` : '') +
-          ` across ${realSources.length} real sources (+2 unavailable — MCA-21, OEM — not tracked by backend yet).`
+          ` across ${realSources.length} real sources (+1 unavailable — OEM Authorization — not tracked by backend yet).`
       );
       setTimeout(() => setVerificationFeedback(null), 6000);
     } catch (err) {
@@ -255,6 +259,38 @@ useEffect(() => {
       setTimeout(() => setVerificationFeedback(null), 6000);
     } finally {
       setIsRunningVerification(false);
+    }
+  };
+
+  const handleFetchDigilocker = async () => {
+    setIsFetchingDigilocker(true);
+    setDigilockerFeedback('Pulling issued documents via DigiLocker...');
+    try {
+      const bundle = await digilockerService.fetchDocuments(bidder.id);
+      setDigilockerBundle(bundle);
+
+      const docCount = bundle.documents?.length ?? 0;
+      const sourceLabel = bundle.source === 'sandbox_live' ? 'live Sandbox API' : 'mock data (no Sandbox API key configured)';
+
+      auditService.logEvent({
+        actor: 'Procurement Officer (Initiated)',
+        role: 'Procurement Officer',
+        action: 'DigiLocker document pull',
+        source: `DigiLocker (${bundle.source})`,
+        result: 'RECORDED',
+        bidderId: bidder.id,
+        comments: `Pulled ${docCount} digitally-signed issuer document(s) via ${sourceLabel}.`,
+      });
+
+      setDigilockerFeedback(`${docCount} document(s) fetched via DigiLocker (${sourceLabel}).`);
+      setTimeout(() => setDigilockerFeedback(null), 6000);
+    } catch (err) {
+      setDigilockerFeedback(
+        err instanceof Error ? `DigiLocker fetch failed: ${err.message}` : 'DigiLocker fetch failed.'
+      );
+      setTimeout(() => setDigilockerFeedback(null), 6000);
+    } finally {
+      setIsFetchingDigilocker(false);
     }
   };
 
@@ -409,6 +445,16 @@ useEffect(() => {
             </button>
 
             <button
+              onClick={handleFetchDigilocker}
+              disabled={isFetchingDigilocker}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-md text-sm font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
+            >
+              <Database className={`w-4 h-4 text-slate-500 ${isFetchingDigilocker ? 'animate-pulse' : ''}`} />
+              <span>{isFetchingDigilocker ? 'Fetching via DigiLocker...' : 'Fetch via DigiLocker'}</span>
+            </button>
+
+
+            <button
               onClick={() => onGenerateReport(bidder.id)}
               className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-md text-sm font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
             >
@@ -434,6 +480,42 @@ useEffect(() => {
               <span>{verificationFeedback}</span>
             </div>
             <span className="font-mono text-xs text-teal-600">Live Verification</span>
+          </div>
+        )}
+
+        {digilockerFeedback && (
+          <div className="p-2.5 rounded bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between">
+            <div className="flex items-center space-x-2 font-medium">
+              <Database className="w-4 h-4 text-blue-700" />
+              <span>{digilockerFeedback}</span>
+            </div>
+            <span className="font-mono text-xs text-blue-600">
+              {digilockerBundle?.source === 'sandbox_live' ? 'Sandbox API (live)' : 'Sandbox API (mock data)'}
+            </span>
+          </div>
+        )}
+
+        {digilockerBundle && digilockerBundle.documents && digilockerBundle.documents.length > 0 && (
+          <div className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+              DigiLocker — Issued Documents
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {digilockerBundle.documents.map((doc) => (
+                <div
+                  key={`${doc.type}-${doc.number}`}
+                  className="flex items-center justify-between px-3 py-2 rounded border border-slate-100 bg-slate-50 text-xs"
+                >
+                  <div>
+                    <div className="font-medium text-slate-800">{doc.type}</div>
+                    <div className="text-slate-500">{doc.issuer} • {doc.number}</div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    {doc.status}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -11,11 +11,12 @@ import {
   Building2,
   Scale,
 } from 'lucide-react';
-import { Bidder, Tender, TenderRequirement, ContradictionItem, DocumentRecord  } from '../../types';
+import { Bidder, Tender, TenderRequirement, ContradictionItem, DocumentRecord, ExpiryItem, VerificationSource } from '../../types';
 import { complianceService } from '../../services/complianceService';
 import { useCurrentOfficer } from '../../context/OfficerContext';
 import { documentService } from '../../services/documentService';
 import { riskService } from '../../services/riskService';
+import { verificationService } from '../../services/verificationService';
 
 interface ComplianceReportViewProps {
   bidder: Bidder;
@@ -80,9 +81,74 @@ useEffect(() => {
     cancelled = true;
   };
 }, [bidder.id]);
+  // Real per-check statutory verification results (GST/PAN/Udyam/Blacklist/
+  // EPFO + the two explicit UNAVAILABLE placeholders) — Section 1 below
+  // used to hardcode a green checkmark for every field regardless of what
+  // the backend actually found. This is the same GET /verify/{bidder_id}
+  // data already used elsewhere (BidderProfileView's verification tab).
+  const [sources, setSources] = useState<VerificationSource[]>([]);
+  useEffect(() => {
+    if (!bidder.id) return;
+    let cancelled = false;
+    verificationService.getSources(bidder.id).then((s) => {
+      if (!cancelled) setSources(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bidder.id]);
+
+  // Real SHA-256 digest of this report's actual content, computed in-browser
+  // via the Web Crypto API — previously this field was a single hardcoded
+  // hex string shown identically on every bidder's report, which made the
+  // "Digital Verification Stamp" meaningless as a tamper-evidence signal.
+  const [reportHash, setReportHash] = useState<string>('Computing…');
+  useEffect(() => {
+    let cancelled = false;
+    const payload = JSON.stringify({
+      bidderId: bidder.id,
+      tenderId: tender.id,
+      complianceScore: bidder.complianceScore,
+      status: bidder.status,
+      officerDecision: bidder.officerDecision ?? null,
+      requirementStatuses: requirements.map((r) => [r.id, r.status]),
+    });
+    const data = new TextEncoder().encode(payload);
+    crypto.subtle
+      .digest('SHA-256', data)
+      .then((digest) => {
+        if (cancelled) return;
+        const hex = Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        setReportHash(`${hex.slice(0, 12)}...${hex.slice(-4)}`);
+      })
+      .catch(() => {
+        if (!cancelled) setReportHash('UNAVAILABLE (Web Crypto not supported)');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bidder.id, tender.id, bidder.complianceScore, bidder.status, bidder.officerDecision, requirements]);
+
   const handlePrint = () => {
     window.print();
   };
+
+  // Dynamic AI advisory line for the Executive Summary box, replacing the
+  // old hardcoded "FURTHER REVIEW RECOMMENDED" shown for every bidder.
+  const advisoryByStatus: Record<Bidder['status'], { label: string; sub: string; className: string }> = {
+    Qualified: { label: 'QUALIFIED — NO ACTION FLAGGED', sub: 'Automated Checks Cleared', className: 'text-emerald-800' },
+    Disqualified: { label: 'DISQUALIFICATION RECOMMENDED', sub: 'Officer Action Required', className: 'text-red-800' },
+    'Clarification Requested': { label: 'CLARIFICATION RECOMMENDED', sub: 'Officer Action Required', className: 'text-amber-900' },
+    'Under Verification': { label: 'VERIFICATION IN PROGRESS', sub: 'Checks Not Yet Complete', className: 'text-slate-700' },
+    'Pending Review': { label: 'FURTHER REVIEW RECOMMENDED', sub: 'Officer Action Required', className: 'text-amber-900' },
+  };
+  const advisory = advisoryByStatus[bidder.status];
+
+  const nearestExpiry = expiries
+    .slice()
+    .sort((a, b) => a.daysRemaining - b.daysRemaining)[0];
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -127,7 +193,7 @@ useEffect(() => {
             </div>
             <div className="text-right">
               <div className="font-mono text-xs font-bold text-[#0F766E]">
-                PROCURESURE-AI-REPORT-2026-047
+                YUKTI-AI-REPORT-{tender.id}-{bidder.id}
               </div>
               <div className="text-[10px] text-slate-500 font-mono">
                 Generated: {new Date().toLocaleDateString('en-GB')} • v2.4.1 Enterprise
@@ -191,14 +257,14 @@ useEffect(() => {
 
             <div className="p-3 bg-slate-50 rounded border border-slate-100">
               <div className="text-[10px] uppercase font-bold text-slate-400">AI Advisory Assessment</div>
-              <div className="text-xs font-bold text-amber-900 mt-2">FURTHER REVIEW RECOMMENDED</div>
-              <div className="text-[10px] text-slate-500">Officer Action Required</div>
+              <div className={`text-xs font-bold mt-2 ${advisory.className}`}>{advisory.label}</div>
+              <div className="text-[10px] text-slate-500">{advisory.sub}</div>
             </div>
 
             <div className="p-3 bg-slate-50 rounded border border-slate-100">
               <div className="text-[10px] uppercase font-bold text-slate-400">Verification Rate</div>
               <div className="text-2xl font-bold text-slate-800 mt-1">{bidder.verificationProgress}%</div>
-              <div className="text-[10px] text-slate-500">10 Official Sources</div>
+              <div className="text-[10px] text-slate-500">{sources.length} Official Sources</div>
             </div>
           </div>
         </div>
@@ -209,40 +275,48 @@ useEffect(() => {
             1. Statutory & Regulatory Cross-Verification
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Income Tax PAN</span>
-              <span className="font-mono font-bold text-slate-900">{bidder.pan}</span>
-              <span className="text-emerald-700 font-bold block text-[10px] mt-0.5">✓ Active & Linked (ITD)</span>
-            </div>
-
-            <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">GST Registration</span>
-              <span className="font-mono font-bold text-slate-900">{bidder.gstin}</span>
-              <span className="text-emerald-700 font-bold block text-[10px] mt-0.5">✓ Active & Tax-Compliant (GSTN)</span>
-            </div>
-
-            <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Corporate Identity (CIN)</span>
-              <span className="font-mono font-bold text-slate-400">Not tracked by backend</span>
-            </div>
-
-            <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">MSME Udyam Number</span>
-              <span className="font-mono font-bold text-slate-900">{bidder.udyam}</span>
-              <span className="text-teal-700 font-bold block text-[10px] mt-0.5">✓ Medium Mfg Enterprise</span>
-            </div>
-
-            <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Debarment Database</span>
-              <span className="font-bold text-slate-900">National Register</span>
-              <span className="text-emerald-700 font-bold block text-[10px] mt-0.5">✓ Clean Record (CVC/GeM)</span>
-            </div>
-
-            <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Statutory Provident Fund</span>
-              <span className="font-mono font-bold text-slate-400">Not tracked by backend</span>
-            </div>
+            {sources.map((source) => {
+              // source.id is `${bidderId}-${checkKey}` (see verificationService.ts)
+              const checkKey = source.id.replace(`${bidder.id}-`, '');
+              const idValue =
+                checkKey === 'pan' ? bidder.pan :
+                checkKey === 'gst' ? bidder.gstin :
+                checkKey === 'udyam' ? bidder.udyam :
+                null;
+              const isUnavailable = source.verificationStatus === 'UNAVAILABLE';
+              const statusClass = isUnavailable
+                ? 'text-slate-400'
+                : source.matchStatus === 'DISCREPANCY'
+                ? 'text-red-700'
+                : source.matchStatus === 'REVIEW'
+                ? 'text-amber-700'
+                : 'text-emerald-700';
+              const statusIcon = isUnavailable
+                ? ''
+                : source.matchStatus === 'DISCREPANCY'
+                ? '✗ '
+                : source.matchStatus === 'REVIEW'
+                ? '⚠ '
+                : '✓ ';
+              return (
+                <div key={source.id} className="p-2.5 bg-slate-50 rounded border border-slate-200">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">{source.name}</span>
+                  {idValue && <span className="font-mono font-bold text-slate-900 block">{idValue}</span>}
+                  <span className={`font-bold block text-[10px] mt-0.5 ${statusClass}`}>
+                    {isUnavailable ? 'Not tracked by backend' : `${statusIcon}${source.evidenceSummary}`}
+                  </span>
+                </div>
+              );
+            })}
           </div>
+          {nearestExpiry && (
+            <div className="text-[10px] text-slate-600 bg-amber-50 border border-amber-200 rounded p-2">
+              <span className="font-bold uppercase">Document Validity Watch:</span>{' '}
+              {nearestExpiry.documentName} ({nearestExpiry.requirement}) — {nearestExpiry.actionRequired},{' '}
+              {nearestExpiry.daysRemaining} day{nearestExpiry.daysRemaining === 1 ? '' : 's'} remaining (expires{' '}
+              {nearestExpiry.expiryDate}).
+            </div>
+          )}
         </div>
 
         {/* Section 2: Technical & Tender Requirements Evaluation */}
@@ -349,7 +423,7 @@ useEffect(() => {
             <div className="font-bold text-slate-800">Officer Technical Rationale:</div>
             <div className="text-slate-700 leading-relaxed italic">
               "{bidder.officerDecision?.comments ||
-                'Bidder technically strong with cleared debarment record. However, procurement regulations mandate formal statutory CA clarification regarding the ₹18.4 Cr vs ₹12.7 Cr turnover variation, and submission of an OEM validity extension letter prior to commercial evaluation.'}"
+                'No officer rationale recorded yet. This dossier reflects automated findings only; the qualification decision and comments are pending Procurement Officer sign-off.'}"
             </div>
           </div>
 
@@ -369,7 +443,7 @@ useEffect(() => {
                   Digital Verification Stamp
                 </div>
                 <div className="p-2 border border-slate-300 rounded font-mono text-[9px] text-slate-600 bg-slate-50 space-y-0.5">
-                  <div>SHA256: e4f98d62b1a0...99c4</div>
+                  <div>SHA256: {reportHash}</div>
                   <div>PLATFORM: Yukti Statutory Verification Engine</div>
                   <div>CPCL SECURE ENCLAVE CERTIFIED</div>
                 </div>

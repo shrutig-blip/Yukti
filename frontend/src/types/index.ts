@@ -14,7 +14,10 @@ export interface Tender {
   overallStatus: 'Compliant' | 'Review Required' | 'Non-Compliant' | 'Pending Verification';
   description: string;
   requirementsCount: number;
-  extractedDate: string;
+  /** Real timestamp from the backend's extracted_date field once a NIT PDF
+   * has actually been uploaded and text-extracted for this tender (see
+   * POST /tender/{id}/extract). Null means that hasn't happened yet. */
+  extractedDate: string | null;
 }
 
 export interface TenderRequirement {

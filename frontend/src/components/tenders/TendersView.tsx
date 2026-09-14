@@ -147,7 +147,9 @@ export const TendersView: React.FC<TendersViewProps> = ({
                   <span className="font-mono text-xs font-semibold text-[#0F766E] bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                     {tender.id}
                   </span>
-                  <div className="text-xs text-slate-400 mt-1 font-mono">Extracted: {tender.extractedDate}</div>
+                  <div className="text-xs text-slate-400 mt-1 font-mono">
+                    Extracted: {tender.extractedDate ?? 'Not yet extracted'}
+                  </div>
                 </div>
                 <span
                   className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold ${

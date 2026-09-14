@@ -1,5 +1,5 @@
-tender_id,tender_title,category_allowed,min_turnover_cr,min_local_content_percent,msme_only,startup_relaxation,department,deadline,estimated_value_cr
-TND001,Supply of Industrial Safety Equipment,General;Medium;OEM,2,50,False,False,Directorate General Factory Advice Service & Labour Institutes (DGFASLI),2026-10-15,2.5
-TND002,MSME Reserved - Office Stationery Supply,General;Medium,0,50,True,True,"Ministry of Micro, Small & Medium Enterprises",2026-09-30,0.8
-TND003,Refinery Spare Parts - OEM Only,OEM,10,60,False,False,Indian Oil Corporation Ltd. (Refineries Division),2026-11-20,15.0
-TND004,IT Hardware Procurement,General;Medium;OEM,5,40,False,True,Ministry of Electronics & Information Technology (MeitY),2026-10-05,6.0
+tender_id,tender_title,category_allowed,min_turnover_cr,min_local_content_percent,msme_only,startup_relaxation,department,deadline,estimated_value_cr,extracted_date,extracted_filename
+TND001,Supply of Industrial Safety Equipment,General;Medium;OEM,2,50,False,False,Directorate General Factory Advice Service & Labour Institutes (DGFASLI),2026-10-15,2.5,,
+TND002,MSME Reserved - Office Stationery Supply,General;Medium,0,50,True,True,"Ministry of Micro, Small & Medium Enterprises",2026-09-30,0.8,,
+TND003,Refinery Spare Parts - OEM Only,OEM,10,60,False,False,Indian Oil Corporation Ltd. (Refineries Division),2026-11-20,15.0,,
+TND004,IT Hardware Procurement,General;Medium;OEM,5,40,False,True,Ministry of Electronics & Information Technology (MeitY),2026-10-05,6.0,,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   FileCheck,
   ListChecks,
@@ -22,6 +22,10 @@ interface TenderChecklistAIProps {
   requirements: TenderRequirement[];
   onUpdateRequirement: (id: string, updates: Partial<TenderRequirement>) => void;
   onNavigateToBidders: () => void;
+  /** Uploads a real NIT PDF to the backend for text extraction (see
+   * tenderService.extractTenderDocument). Rejects if extraction fails
+   * (e.g. an unreadable/empty PDF). */
+  onExtractDocument: (file: File) => Promise<{ extracted_date: string; filename: string }>;
 }
 
 export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
@@ -29,11 +33,14 @@ export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
   requirements,
   onUpdateRequirement,
   onNavigateToBidders,
+  onExtractDocument,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [editingRequirement, setEditingRequirement] = useState<TenderRequirement | null>(null);
-  const [isSimulatingUpload, setIsSimulatingUpload] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = ['ALL', 'Financial', 'Technical / Experience', 'Statutory', 'Authorization', 'Integrity / Debarment'];
 
@@ -44,13 +51,29 @@ export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
 
   const pendingConfirmations = requirements.filter((r) => !r.officerConfirmed).length;
 
-  const handleSimulateNewUpload = () => {
-    setIsSimulatingUpload(true);
-    setTimeout(() => {
-      setIsSimulatingUpload(false);
-      setUploadSuccessMessage('Tender Document "CPCL-PUMP-NIT-2026-REV2.pdf" analyzed: 14 statutory & technical clauses mapped.');
-      setTimeout(() => setUploadSuccessMessage(null), 4000);
-    }, 1200);
+  const handlePickFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file next time
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadErrorMessage(null);
+    try {
+      const result = await onExtractDocument(file);
+      setUploadSuccessMessage(
+        `Tender document "${result.filename}" uploaded and text-extracted at ${result.extracted_date}. Eligibility requirements below are unchanged — they come from the tender's recorded criteria, not this upload.`
+      );
+      setTimeout(() => setUploadSuccessMessage(null), 6000);
+    } catch (err: any) {
+      setUploadErrorMessage(err?.message || 'Upload failed — could not extract text from this PDF.');
+      setTimeout(() => setUploadErrorMessage(null), 6000);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -86,22 +109,29 @@ export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
             </h1>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-teal-100 text-teal-800 border border-teal-300">
               <FileCheck className="w-3.5 h-3.5 mr-1 text-teal-700" />
-              Automated Clause Parser Active
+              Criteria-Based Requirements
             </span>
           </div>
           <p className="text-sm text-slate-600 mt-1 font-normal leading-relaxed">
-            Converts unstructured tender Notice Inviting Tender (NIT) PDFs into structured, verifiable compliance matrices.
+            Requirements below are generated from this tender's recorded eligibility criteria (turnover, local content, category, MSME-only). Uploading the NIT PDF records a verified extraction timestamp but does not currently change this list.
           </p>
         </div>
 
         <div className="flex items-center space-x-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileSelected}
+            className="hidden"
+          />
           <button
-            onClick={handleSimulateNewUpload}
-            disabled={isSimulatingUpload}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-sm font-medium rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
+            onClick={handlePickFile}
+            disabled={isUploading}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-sm font-medium rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-60"
           >
             <Upload className="w-4 h-4 text-slate-500" />
-            <span>{isSimulatingUpload ? 'Parsing Tender Doc...' : 'Re-parse Tender PDF'}</span>
+            <span>{isUploading ? 'Extracting Tender Doc...' : 'Upload Tender PDF'}</span>
           </button>
           <button
             onClick={onNavigateToBidders}
@@ -125,12 +155,24 @@ export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
         </div>
       )}
 
+      {uploadErrorMessage && (
+        <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-900 text-sm flex items-center justify-between font-medium">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+            <span>{uploadErrorMessage}</span>
+          </div>
+          <button onClick={() => setUploadErrorMessage(null)} className="text-red-700 hover:text-red-900">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* AI Extraction Status Banner */}
       <div className="bg-[#102A43] text-white p-5 rounded-md shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5">
           <div className="flex items-center space-x-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-teal-300 bg-teal-900/60 px-2 py-0.5 rounded border border-teal-600/50">
-              Extraction Pipeline Complete
+              {tender.extractedDate ? 'NIT Document Extracted' : 'Eligibility Criteria Loaded'}
             </span>
             <span className="text-xs text-slate-300 font-mono">
               Tender: {tender.id}
