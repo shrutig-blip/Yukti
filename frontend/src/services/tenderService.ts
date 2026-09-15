@@ -1,4 +1,4 @@
-import { apiGet, apiPostForm } from './apiClient';
+import { apiGet, apiPost, apiPostForm } from './apiClient';
 import { Tender, TenderRequirement, SeverityLevel } from '../types';
 
 /**
@@ -262,11 +262,47 @@ class TenderService {
     return null;
   }
 
-  public createTender(
-    tender: Omit<Tender, 'biddersCount' | 'verifiedCount' | 'pendingCount' | 'overallStatus' | 'extractedDate'>
-  ): Tender {
+  /**
+   * Real replacement for the old local-only createTender(): posts to
+   * POST /tender on the backend, which persists the row to
+   * tender_criteria.csv and auto-assigns a real TND0xx id (previously the
+   * UI fabricated a random-looking "CPCL/PROC/2026/NN" id client-side and
+   * never sent anything to the backend at all — a page refresh silently
+   * lost the "created" tender). Only tender_id, department, deadline, and
+   * estimated_value_cr are genuinely new inputs here; the eligibility
+   * fields (category/turnover/local-content/MSME/startup) still need real
+   * values — sensible defaults are supplied by the caller (TendersView)
+   * and can be edited afterwards via PATCH /tender/{id}/requirement.
+   */
+  public async createTender(
+    tender: Omit<Tender, 'biddersCount' | 'verifiedCount' | 'pendingCount' | 'overallStatus' | 'extractedDate' | 'id'> & {
+      category_allowed?: string;
+      min_turnover_cr?: number;
+      min_local_content_percent?: number;
+      msme_only?: boolean;
+      startup_relaxation?: boolean;
+    }
+  ): Promise<Tender> {
+    const created = await apiPost<{ tender_id: string }>('/tender', {
+      tender_title: tender.title,
+      category_allowed: tender.category_allowed ?? 'General',
+      min_turnover_cr: tender.min_turnover_cr ?? 0,
+      min_local_content_percent: tender.min_local_content_percent ?? 0,
+      msme_only: tender.msme_only ?? false,
+      startup_relaxation: tender.startup_relaxation ?? false,
+      department: tender.department,
+      deadline: tender.deadline,
+      estimated_value_cr: parseFloat(tender.estimatedValue.replace(/[^\d.]/g, '')) || 0,
+    });
+
     const newTender: Tender = {
-      ...tender,
+      id: created.tender_id,
+      title: tender.title,
+      department: tender.department,
+      deadline: tender.deadline,
+      estimatedValue: tender.estimatedValue,
+      description: tender.description,
+      requirementsCount: tender.requirementsCount,
       biddersCount: 0,
       verifiedCount: 0,
       pendingCount: 0,

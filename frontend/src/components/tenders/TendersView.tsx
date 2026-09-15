@@ -21,7 +21,8 @@ interface TendersViewProps {
   tenders: Tender[];
   onSelectTender: (id: string) => void;
   onOpenExtraction: (id: string) => void;
-  onCreateTender: (newTender: any) => void;
+  onCreateTender: (newTender: any) => Promise<Tender>;
+  onExtractDocumentFor: (tenderId: string, file: File) => Promise<{ extracted_date: string; filename: string }>;
 }
 
 export const TendersView: React.FC<TendersViewProps> = ({
@@ -29,6 +30,7 @@ export const TendersView: React.FC<TendersViewProps> = ({
   onSelectTender,
   onOpenExtraction,
   onCreateTender,
+  onExtractDocumentFor,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -40,10 +42,13 @@ export const TendersView: React.FC<TendersViewProps> = ({
   const [newDeadline, setNewDeadline] = useState('31 Oct 2026, 17:00 IST');
   const [newValue, setNewValue] = useState('₹25.00 Cr');
   const [newDesc, setNewDesc] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   // Upload state
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadTargetTenderId, setUploadTargetTenderId] = useState<string>('__new__');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const filtered = tenders.filter(
     (t) =>
@@ -52,33 +57,60 @@ export const TendersView: React.FC<TendersViewProps> = ({
       t.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle) return;
-    const generatedId = `CPCL/PROC/2026/${Math.floor(60 + Math.random() * 40)}`;
-    onCreateTender({
-      id: generatedId,
-      title: newTitle,
-      department: newDept,
-      deadline: newDeadline,
-      estimatedValue: newValue,
-      description: newDesc || 'Procurement initiated under CPCL e-Tendering portal guidelines.',
-      requirementsCount: 14,
-    });
-    setIsCreateModalOpen(false);
-    setNewTitle('');
-    setNewDesc('');
+    setIsCreating(true);
+    try {
+      await onCreateTender({
+        title: newTitle,
+        department: newDept,
+        deadline: newDeadline,
+        estimatedValue: newValue,
+        description: newDesc || 'Procurement initiated under CPCL e-Tendering portal guidelines.',
+        requirementsCount: 4,
+      });
+      setIsCreateModalOpen(false);
+      setNewTitle('');
+      setNewDesc('');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadedFile) return;
     setIsUploading(true);
-    setTimeout(() => {
-      setIsUploading(false);
+    setUploadError(null);
+    try {
+      let targetId = uploadTargetTenderId;
+      if (targetId === '__new__') {
+        // "Upload can also create a tender": a bare tender is created first
+        // (title from the filename — full structured NIT parsing into
+        // department/turnover/etc. isn't implemented, see tenderService.ts
+        // SCOPE NOTE), then the PDF is run through real text extraction
+        // against that brand-new tender_id.
+        const created = await onCreateTender({
+          title: uploadedFile.name.replace(/\.pdf$/i, ''),
+          department: 'Unassigned — set after NIT review',
+          deadline: 'TBD — set after NIT review',
+          estimatedValue: '₹0.00 Cr',
+          description: `Created from uploaded NIT document "${uploadedFile.name}". Eligibility fields pending manual entry.`,
+          requirementsCount: 4,
+        });
+        targetId = created.id;
+      }
+      await onExtractDocumentFor(targetId, uploadedFile);
       setIsUploadModalOpen(false);
-      onOpenExtraction('CPCL/PROC/2026/047');
-    }, 1200);
+      setUploadedFile(null);
+      setUploadTargetTenderId('__new__');
+      onOpenExtraction(targetId);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed. Is the backend running?');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -309,9 +341,10 @@ export const TendersView: React.FC<TendersViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#102A43] hover:bg-slate-800 text-white rounded font-semibold shadow-xs"
+                  disabled={isCreating}
+                  className="px-4 py-1.5 bg-[#102A43] hover:bg-slate-800 disabled:opacity-50 text-white rounded font-semibold shadow-xs"
                 >
-                  Create Tender
+                  {isCreating ? 'Creating…' : 'Create Tender'}
                 </button>
               </div>
             </form>
@@ -332,22 +365,42 @@ export const TendersView: React.FC<TendersViewProps> = ({
 
             <form onSubmit={handleUploadSubmit} className="p-5 space-y-4 text-xs">
               <p className="text-slate-600">
-                Upload the official Notice Inviting Tender (NIT) or technical specifications document.
-                The extraction engine parses clauses, identifies eligibility thresholds, and generates a structured compliance matrix.
+                Upload the official Notice Inviting Tender (NIT) document. The backend extracts and timestamps
+                the document's real text — it does not yet auto-populate eligibility fields from it, so review
+                and edit those manually after upload.
               </p>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
+                  Tender
+                </label>
+                <select
+                  value={uploadTargetTenderId}
+                  onChange={(e) => setUploadTargetTenderId(e.target.value)}
+                  className="w-full p-2 border border-slate-300 rounded text-slate-800 bg-white"
+                >
+                  <option value="__new__">+ Create new tender from this upload</option>
+                  {tenders.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.id} — {t.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div className="border-2 border-dashed border-slate-300 rounded-md p-6 text-center hover:border-teal-500 cursor-pointer transition-colors bg-slate-50">
                 <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                 <div className="font-semibold text-slate-700">
                   {uploadedFile ? uploadedFile.name : 'Click to select or drag NIT PDF'}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-1">PDF, DOCX up to 50MB</div>
+                <div className="text-[10px] text-slate-400 mt-1">PDF only</div>
                 <input
                   type="file"
-                  accept=".pdf,.docx"
+                  accept=".pdf"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       setUploadedFile(e.target.files[0]);
+                      setUploadError(null);
                     }
                   }}
                   className="hidden"
@@ -360,6 +413,12 @@ export const TendersView: React.FC<TendersViewProps> = ({
                   Browse Document
                 </label>
               </div>
+
+              {uploadError && (
+                <div className="p-2 rounded bg-red-50 border border-red-200 text-red-700 text-[11px]">
+                  {uploadError}
+                </div>
+              )}
 
               <div className="flex justify-end space-x-2 pt-2 border-t border-slate-200">
                 <button
@@ -375,7 +434,7 @@ export const TendersView: React.FC<TendersViewProps> = ({
                   className="px-4 py-1.5 bg-[#0F766E] hover:bg-teal-800 disabled:opacity-50 text-white rounded font-semibold shadow-xs flex items-center space-x-1.5"
                 >
                   <FileSearch className="w-3.5 h-3.5" />
-                  <span>{isUploading ? 'Extracting Requirements...' : 'Extract NIT Requirements'}</span>
+                  <span>{isUploading ? 'Extracting…' : 'Extract NIT Requirements'}</span>
                 </button>
               </div>
             </form>

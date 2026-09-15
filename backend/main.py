@@ -360,6 +360,9 @@ class TenderCreateIn(BaseModel):
     min_local_content_percent: float
     msme_only: bool = False
     startup_relaxation: bool = False
+    department: str | None = None
+    deadline: str | None = None
+    estimated_value_cr: float | None = None
 
 @app.post("/tender")
 def create_tender(tender: TenderCreateIn):
@@ -367,6 +370,36 @@ def create_tender(tender: TenderCreateIn):
     if result is None:
         raise HTTPException(status_code=409, detail="A tender with this tender_id already exists")
     return result
+
+
+@app.post("/tender/{tender_id}/extract")
+async def extract_tender_document(tender_id: str, file: UploadFile = File(...)):
+    """Uploads a real NIT PDF, runs it through the same PDF text-extraction
+    used for bidder certificates, and — only if that extraction actually
+    succeeds — persists a real extracted_date/extracted_filename against the
+    tender. Previously this endpoint didn't exist at all, so the frontend's
+    'Upload Tender Document' flow could never work against real data."""
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted (DOCX text extraction isn't implemented yet)")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        raw_text = extract_text_from_pdf(tmp_path)
+    finally:
+        os.remove(tmp_path)
+
+    result = data_loader.extract_tender_document(tender_id, file.filename, raw_text)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    return {
+        "tender_id": tender_id,
+        "filename": file.filename,
+        "extracted_date": result["extracted_date"],
+        "text_length": len(raw_text or ""),
+    }
 
 class TenderRequirementUpdateIn(BaseModel):
     tender_title: str | None = None
