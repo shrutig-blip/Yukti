@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil, tempfile, os
 import data_loader
+import continuous_compliance
 from pdf_extractor import extract_text_from_pdf, extract_certificate_fields, analyze_document_integrity, extract_nit_requirements
 from data_loader import verify_certificate_against_records
 from auth import (
@@ -13,6 +14,7 @@ from auth import (
 from typing import Optional, List
 from groq import Groq
 from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Loads variables from backend/.env (if present) into the environment —
 # this is the PERMANENT fix so you never have to set the API key
@@ -45,6 +47,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Continuous Compliance — scheduled re-check job
+# ---------------------------------------------------------------------------
+# Bid-time verification (/verify/{bidder_id}) is a one-time gate. This job
+# is what makes compliance an ongoing concern: every
+# COMPLIANCE_RECHECK_INTERVAL_HOURS (default 24h — override via env var,
+# e.g. set it low for a demo), it re-runs verify_bidder_credentials() for
+# every bidder currently under an awarded/active contract (QUALIFIED
+# officer decision) and raises a COMPLIANCE_LAPSE the moment someone who
+# was passing starts failing. See continuous_compliance.py for the full
+# design rationale. The scheduler starts with the app and stops with it;
+# POST /monitoring/run exists alongside it so the feature can be demoed
+# on demand instead of waiting for the interval to elapse.
+_RECHECK_INTERVAL_HOURS = float(os.environ.get("COMPLIANCE_RECHECK_INTERVAL_HOURS", 24))
+_scheduler = BackgroundScheduler()
+_scheduler.add_job(
+    lambda: continuous_compliance.run_sweep(trigger="scheduled"),
+    "interval",
+    hours=_RECHECK_INTERVAL_HOURS,
+    id="continuous_compliance_sweep",
+    next_run_time=None,  # don't fire the instant the app boots; wait one interval
+)
+
+
+@app.on_event("startup")
+def _start_compliance_scheduler():
+    if not _scheduler.running:
+        _scheduler.start()
+
+
+@app.on_event("shutdown")
+def _stop_compliance_scheduler():
+    if _scheduler.running:
+        _scheduler.shutdown(wait=False)
 
 
 @app.get("/")
@@ -347,6 +384,70 @@ def read_officer_decision(bidder_id: str):
 @app.get("/decisions")
 def read_all_decisions():
     return data_loader.get_all_decisions()
+
+# ---------------------------------------------------------------------------
+# Continuous Compliance Monitoring
+# ---------------------------------------------------------------------------
+# Not a one-time bid-submission gate: this re-runs statutory verification
+# for bidders currently under an awarded/active contract (QUALIFIED officer
+# decision) and surfaces it the moment a previously-clean bidder lapses
+# (blacklisted, GST filing goes overdue, etc.) mid-contract. See
+# continuous_compliance.py for the full design/grounding notes and the
+# background scheduler set up above that calls run_sweep() automatically.
+
+@app.get("/monitoring/bidders")
+def read_monitored_bidders():
+    """Bidders currently under continuous compliance monitoring, i.e.
+    in an active/awarded contract rather than merely having placed a bid."""
+    return continuous_compliance.get_monitored_bidders()
+
+
+@app.post("/monitoring/{bidder_id}/recheck")
+def recheck_bidder_compliance(bidder_id: str):
+    """Manually trigger an immediate re-check for one bidder — same logic
+    the scheduled sweep runs, just for a single bidder and on demand."""
+    result = continuous_compliance.recheck_bidder(bidder_id, trigger="manual")
+    if result is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return result
+
+
+@app.post("/monitoring/run")
+def run_monitoring_sweep():
+    """Manually trigger a full sweep across every monitored bidder, on
+    demand — the same job the background scheduler fires automatically
+    every COMPLIANCE_RECHECK_INTERVAL_HOURS."""
+    return continuous_compliance.run_sweep(trigger="manual")
+
+
+@app.get("/bidder/{bidder_id}/compliance-history")
+def read_compliance_history(bidder_id: str):
+    """Every point-in-time compliance snapshot ever taken for this bidder,
+    newest first — lets the dashboard show compliance status over the life
+    of the contract, not just a single moment."""
+    if data_loader.get_bidder_by_id(bidder_id) is None:
+        raise HTTPException(status_code=404, detail="Bidder not found")
+    return continuous_compliance.get_snapshot_history(bidder_id)
+
+
+@app.get("/monitoring/lapses")
+def read_compliance_lapses(bidder_id: Optional[str] = None, acknowledged: Optional[bool] = None):
+    """Detected mid-contract compliance lapses, newest first. Filterable by
+    bidder and/or acknowledged status — this is what a dashboard alert
+    badge / notification list would query against."""
+    return continuous_compliance.get_lapses(bidder_id=bidder_id, acknowledged=acknowledged)
+
+
+class LapseAcknowledgeIn(BaseModel):
+    officer_name: str
+
+
+@app.post("/monitoring/lapses/{lapse_id}/acknowledge")
+def acknowledge_compliance_lapse(lapse_id: str, payload: LapseAcknowledgeIn):
+    result = continuous_compliance.acknowledge_lapse(lapse_id, payload.officer_name)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Lapse not found")
+    return result
 
 # ---------------------------------------------------------------------------
 # Tender create / requirement edit
