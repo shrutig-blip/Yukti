@@ -86,7 +86,7 @@ function buildDescription(c: RawTenderCriteria): string {
   const parts = [
     `Min. turnover: ₹${c.min_turnover_cr} Cr`,
     `Min. local content: ${c.min_local_content_percent}%`,
-    `Categories allowed: ${c.category_allowed.split(';').join(', ')}`,
+    `Categories allowed: ${(c.category_allowed || 'General').split(';').join(', ')}`,
     `MSME-only: ${c.msme_only ? 'Yes' : 'No'}`,
     `Startup turnover relaxation: ${c.startup_relaxation ? 'Yes (GFR Rule 173)' : 'No'}`,
   ];
@@ -128,7 +128,7 @@ function buildRequirements(c: RawTenderCriteria): TenderRequirement[] {
     {
       id: `${c.tender_id}-REQ-CATEGORY`,
       tenderId: c.tender_id,
-      requirement: `Bidder category must be one of: ${c.category_allowed.split(';').join(', ')}`,
+      requirement: `Bidder category must be one of: ${(c.category_allowed || 'General').split(';').join(', ')}`,
       evidenceRequired: 'Registration / category declaration',
       isMandatory: true,
       verificationMethod: 'bidder.category in category_allowed',
@@ -321,15 +321,27 @@ class TenderService {
    * persists a real extracted_date. Updates the in-memory tender cache so
    * "Extracted: ..." reflects the real value without a full reload.
    *
-   * SCOPE NOTE: this does not turn the PDF into new requirement rows — the
-   * requirements checklist is still built from tender_criteria's real
-   * eligibility fields (buildRequirements above). This only proves and
-   * timestamps that a document was uploaded and was actually readable.
+   * The backend also now runs the extracted text through
+   * extract_nit_requirements() and writes back any field it could
+   * confidently read (title, turnover, local content %, category, deadline,
+   * estimated value, MSME-only, startup relaxation) — see
+   * `requirements_extracted` in the response for exactly which fields this
+   * particular PDF changed. Fields it couldn't find are left as they were.
+   * When `requirement` comes back we rebuild this tender's cached
+   * description/requirements list from it so the UI reflects the update
+   * without a full reload.
    */
   public async extractTenderDocument(
     tenderId: string,
     file: File
-  ): Promise<{ tender_id: string; filename: string; extracted_date: string; text_length: number }> {
+  ): Promise<{
+    tender_id: string;
+    filename: string;
+    extracted_date: string;
+    text_length: number;
+    requirements_extracted?: Record<string, unknown>;
+    requirement?: RawTenderCriteria;
+  }> {
     const formData = new FormData();
     formData.append('file', file);
     const result = await apiPostForm<{
@@ -337,11 +349,23 @@ class TenderService {
       filename: string;
       extracted_date: string;
       text_length: number;
+      requirements_extracted?: Record<string, unknown>;
+      requirement?: RawTenderCriteria;
     }>(`/tender/${tenderId}/extract`, formData);
 
     const cached = this.tendersCache.find((t) => t.id === tenderId);
     if (cached) {
       cached.extractedDate = result.extracted_date;
+      if (result.requirement) {
+        cached.title = result.requirement.tender_title;
+        cached.deadline = result.requirement.deadline;
+        cached.estimatedValue = `₹${result.requirement.estimated_value_cr} Cr`;
+        cached.description = buildDescription(result.requirement);
+      }
+    }
+    if (result.requirement) {
+      const requirements = buildRequirements(result.requirement);
+      this.requirementsCache.set(tenderId, requirements);
     }
 
     return result;

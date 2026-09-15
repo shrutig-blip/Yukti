@@ -299,21 +299,24 @@ def extract_nit_requirements(text: str) -> dict:
         end = end_dot if end_dot != -1 else len(text)
         return text[start:end]
 
+    # NOTE: these two are left out of `fields` entirely (not set to False)
+    # when the phrase isn't found in the document at all. This matters for
+    # callers like the tender-upload endpoint, which treats a present key as
+    # "this PDF told us something" and a missing key as "leave the existing
+    # value alone" — always writing False here would silently clear a
+    # true value from a tender record just because THIS particular upload
+    # happened not to mention it.
     _msme_hit = re.search(r"MSME\s*only|restricted\s*to\s*MSME", text, re.IGNORECASE)
     if _msme_hit:
         sentence = _sentence_around(_msme_hit)
         negated = bool(re.search(r"\b(not|no|non)\b", sentence, re.IGNORECASE))
         fields["msme_only"] = not negated
-    else:
-        fields["msme_only"] = False
 
     _startup_hit = re.search(r"startup\s*relaxation|DPIIT\s*recognized\s*startup", text, re.IGNORECASE)
     if _startup_hit:
         sentence = _sentence_around(_startup_hit)
         negated = bool(re.search(r"\b(not|no|non)\b", sentence, re.IGNORECASE))
         fields["startup_relaxation"] = not negated
-    else:
-        fields["startup_relaxation"] = False
 
     return fields
 

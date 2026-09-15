@@ -100,16 +100,19 @@ class DocumentService {
   }
 
   /**
-   * Real replacement for simulateUpload(): actually sends the file to
-   * /verify/{bidderId}/certificate (pdfplumber + OCR + portal check +
-   * document-integrity/forgery check), builds a DocumentRecord from the
-   * REAL response, stores it, and returns it.
-   *
-   * Call this wherever the UI currently calls simulateUpload(bidderId, file)
-   * — note this one is async, so callers need `await`.
+   * Pure DocumentRecord builder — takes a response already fetched from
+   * POST /verify/{bidderId}/certificate (e.g. via uploadCertificateForVerification)
+   * and turns it into a DocumentRecord, including the real document_integrity
+   * result. Split out from uploadDocument() below so a caller that already
+   * has the verification response (like BidderProfileView's upload handler)
+   * can build a proper, integrity-aware DocumentRecord — and add it to the
+   * document list/table — without firing a second network request.
    */
-  public async uploadDocument(bidderId: string, file: File): Promise<DocumentRecord> {
-    const result = await this.uploadCertificateForVerification(bidderId, file);
+  public buildDocumentRecordFromVerification(
+    bidderId: string,
+    file: File,
+    result: { extracted: any; verification: any; document_integrity?: any }
+  ): DocumentRecord {
     const docType: string = result.extracted?.document_type ?? 'unknown';
     const allPassed: boolean = !!result.verification?.all_passed;
     const needsReview: boolean = !!result.verification?.needs_review;
@@ -142,7 +145,7 @@ class DocumentService {
       });
     }
 
-    const newDoc: DocumentRecord = {
+    return {
       id: `DOC-${bidderId}-${docType}-${Date.now().toString().slice(-4)}`,
       bidderId,
       name: DOCUMENT_TYPE_LABEL_MAP[docType] || file.name,
@@ -159,10 +162,24 @@ class DocumentService {
         ? {
             status: integrity.score === 100 ? 'CLEAR' : 'FLAGGED',
             confidence: integrity.score,
+            detectedNote: integrity.flags?.length ? integrity.flags.join(' ') : undefined,
           }
         : { status: 'CLEAR', confidence: 100 },
     };
+  }
 
+  /**
+   * Real replacement for simulateUpload(): actually sends the file to
+   * /verify/{bidderId}/certificate (pdfplumber + OCR + portal check +
+   * document-integrity/forgery check), builds a DocumentRecord from the
+   * REAL response, stores it, and returns it.
+   *
+   * Call this wherever the UI currently calls simulateUpload(bidderId, file)
+   * — note this one is async, so callers need `await`.
+   */
+  public async uploadDocument(bidderId: string, file: File): Promise<DocumentRecord> {
+    const result = await this.uploadCertificateForVerification(bidderId, file);
+    const newDoc = this.buildDocumentRecordFromVerification(bidderId, file, result);
     this.documents.unshift(newDoc);
     return newDoc;
   }

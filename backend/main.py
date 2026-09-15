@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil, tempfile, os
 import data_loader
-from pdf_extractor import extract_text_from_pdf, extract_certificate_fields, analyze_document_integrity
+from pdf_extractor import extract_text_from_pdf, extract_certificate_fields, analyze_document_integrity, extract_nit_requirements
 from data_loader import verify_certificate_against_records
 from auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
@@ -372,13 +372,37 @@ def create_tender(tender: TenderCreateIn):
     return result
 
 
+_NIT_NUMERIC_FIELDS = {"min_turnover_cr", "min_local_content_percent", "estimated_value_cr"}
+
+def _parse_nit_field(field: str, value):
+    """Coerces a raw regex-extracted string into the type the tender_criteria
+    dataframe expects for that field. Returns None if it can't be parsed
+    cleanly — we'd rather leave a field untouched than write a bad value."""
+    if value is None:
+        return None
+    if field in _NIT_NUMERIC_FIELDS:
+        try:
+            return float(str(value).replace(",", "").strip())
+        except (TypeError, ValueError):
+            return None
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return value
+
+
 @app.post("/tender/{tender_id}/extract")
 async def extract_tender_document(tender_id: str, file: UploadFile = File(...)):
     """Uploads a real NIT PDF, runs it through the same PDF text-extraction
     used for bidder certificates, and — only if that extraction actually
     succeeds — persists a real extracted_date/extracted_filename against the
-    tender. Previously this endpoint didn't exist at all, so the frontend's
-    'Upload Tender Document' flow could never work against real data."""
+    tender. It also runs extract_nit_requirements() over the extracted text
+    and, for any field it could confidently parse (tender title, turnover,
+    local content %, category, deadline, estimated value, MSME-only,
+    startup relaxation), writes that value onto the tender's requirement
+    record via update_tender_requirement(). Fields the regexes don't find in
+    this particular PDF are left exactly as they were — this never blanks
+    out an existing value, it only fills in what it actually read."""
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted (DOCX text extraction isn't implemented yet)")
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -394,11 +418,37 @@ async def extract_tender_document(tender_id: str, file: UploadFile = File(...)):
     if result is None:
         raise HTTPException(status_code=404, detail="Tender not found")
 
+    # Map the NIT-extraction field names onto the tender_criteria column
+    # names (they differ for the deadline field), coerce types, and drop
+    # anything the regexes didn't find.
+    raw_fields = extract_nit_requirements(raw_text or "")
+    field_name_map = {
+        "tender_title": "tender_title",
+        "min_turnover_cr": "min_turnover_cr",
+        "min_local_content_percent": "min_local_content_percent",
+        "category_allowed": "category_allowed",
+        "submission_deadline": "deadline",
+        "estimated_value_cr": "estimated_value_cr",
+        "msme_only": "msme_only",
+        "startup_relaxation": "startup_relaxation",
+    }
+    updates = {}
+    for src_field, dest_field in field_name_map.items():
+        parsed = _parse_nit_field(dest_field, raw_fields.get(src_field))
+        if parsed is not None:
+            updates[dest_field] = parsed
+
+    updated_requirement = result
+    if updates:
+        updated_requirement = data_loader.update_tender_requirement(tender_id, updates) or result
+
     return {
         "tender_id": tender_id,
         "filename": file.filename,
         "extracted_date": result["extracted_date"],
         "text_length": len(raw_text or ""),
+        "requirements_extracted": updates,
+        "requirement": updated_requirement,
     }
 
 class TenderRequirementUpdateIn(BaseModel):

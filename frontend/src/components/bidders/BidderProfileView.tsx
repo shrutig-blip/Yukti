@@ -780,6 +780,14 @@ useEffect(() => {
     try {
       const result = await documentService.uploadCertificateForVerification(bidder.id, file);
       setUploadResult(result);
+      // Also add this upload as a real row in the Document Vault table below
+      // (with its real document_integrity result attached) so clicking it
+      // opens the Document Integrity & Tampering Checks section in the
+      // inspect modal — previously the integrity result only ever appeared
+      // in the one-time panel right after upload and was lost once you
+      // navigated to the table/modal.
+      const newDoc = documentService.buildDocumentRecordFromVerification(bidder.id, file, result);
+      setDocuments((prev) => [newDoc, ...prev]);
       const v = result.verification;
       if (v.document_type === 'unknown') {
         setUploadToast({ type: 'error', message: 'Document type could not be recognized — please check the file.' });
