@@ -24,9 +24,25 @@ interface TenderChecklistAIProps {
   onNavigateToBidders: () => void;
   /** Uploads a real NIT PDF to the backend for text extraction (see
    * tenderService.extractTenderDocument). Rejects if extraction fails
-   * (e.g. an unreadable/empty PDF). */
-  onExtractDocument: (file: File) => Promise<{ extracted_date: string; filename: string }>;
+   * (e.g. an unreadable/empty PDF). Any eligibility fields the backend could
+   * confidently read out of the PDF come back in requirements_extracted. */
+  onExtractDocument: (file: File) => Promise<{
+    extracted_date: string;
+    filename: string;
+    requirements_extracted?: Record<string, unknown>;
+  }>;
 }
+
+const NIT_FIELD_LABELS: Record<string, string> = {
+  tender_title: 'tender title',
+  min_turnover_cr: 'minimum turnover',
+  min_local_content_percent: 'minimum local content %',
+  category_allowed: 'allowed category',
+  deadline: 'submission deadline',
+  estimated_value_cr: 'estimated value',
+  msme_only: 'MSME-only flag',
+  startup_relaxation: 'startup relaxation flag',
+};
 
 export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
   tender,
@@ -64,10 +80,14 @@ export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
     setUploadErrorMessage(null);
     try {
       const result = await onExtractDocument(file);
+      const changedFields = Object.keys(result.requirements_extracted ?? {});
+      const changedLabel = changedFields.map((f) => NIT_FIELD_LABELS[f] ?? f).join(', ');
       setUploadSuccessMessage(
-        `Tender document "${result.filename}" uploaded and text-extracted at ${result.extracted_date}. Eligibility requirements below are unchanged — they come from the tender's recorded criteria, not this upload.`
+        changedFields.length > 0
+          ? `Tender document "${result.filename}" uploaded and text-extracted at ${result.extracted_date}. Updated from this PDF: ${changedLabel}.`
+          : `Tender document "${result.filename}" uploaded and text-extracted at ${result.extracted_date}. This PDF didn't contain any recognizable eligibility fields, so the existing requirements were left as-is.`
       );
-      setTimeout(() => setUploadSuccessMessage(null), 6000);
+      setTimeout(() => setUploadSuccessMessage(null), 8000);
     } catch (err: any) {
       setUploadErrorMessage(err?.message || 'Upload failed — could not extract text from this PDF.');
       setTimeout(() => setUploadErrorMessage(null), 6000);
@@ -113,7 +133,7 @@ export const TenderChecklistAI: React.FC<TenderChecklistAIProps> = ({
             </span>
           </div>
           <p className="text-sm text-slate-600 mt-1 font-normal leading-relaxed">
-            Requirements below are generated from this tender's recorded eligibility criteria (turnover, local content, category, MSME-only). Uploading the NIT PDF records a verified extraction timestamp but does not currently change this list.
+            Requirements below are generated from this tender's recorded eligibility criteria (turnover, local content, category, MSME-only). Uploading the NIT PDF records a verified extraction timestamp and updates any of these fields it can confidently read from the document — fields not found in the PDF are left as they were.
           </p>
         </div>
 

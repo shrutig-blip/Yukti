@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TopNavbar, NavigationTab } from './components/layout/TopNavbar';
 import { SystemGovernanceModal } from './components/modals/SystemGovernanceModal';
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -39,6 +39,24 @@ function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
   const currentUser = authService.getStoredUser();
   const isDemoAccount = currentUser?.email?.toLowerCase() === DEMO_ACCOUNT_EMAIL.toLowerCase();
+
+  // Bug fix: handleExtractTenderDocument(For) below need to know the
+  // CURRENTLY selected tender at the moment the upload actually finishes —
+  // not whichever tender was selected when that handler closure was first
+  // created. In the "upload NIT PDF -> create tender -> extract -> open it"
+  // flow (TendersView's __new__ path), create+select+extract+open all
+  // happen inside one button-click's async chain, so the `currentTender`
+  // closure captured at render time is stale by the time extraction
+  // finishes, and the subsequent onOpenExtraction() call re-selects the
+  // SAME tender id (a no-op for React, so the fetch-on-select effect never
+  // re-fires) — the net effect was a freshly-extracted tender showing
+  // "0 Requirements Extracted" until the page was manually refreshed. A
+  // ref always holds the live value regardless of which render created the
+  // closure reading it.
+  const selectedTenderIdRef = useRef(selectedTenderId);
+  useEffect(() => {
+    selectedTenderIdRef.current = selectedTenderId;
+  }, [selectedTenderId]);
 
   useEffect(() => {
     if (!isDemoAccount) {
@@ -150,9 +168,16 @@ function AppContent() {
 
   const handleExtractTenderDocument = async (file: File) => {
     const result = await tenderService.extractTenderDocument(selectedTenderId, file);
-    setTenders((prev) =>
-      prev.map((t) => (t.id === selectedTenderId ? { ...t, extractedDate: result.extracted_date } : t))
-    );
+    const updatedCached = tenderService.getTenderById(selectedTenderId);
+    if (updatedCached) {
+      setTenders((prev) => prev.map((t) => (t.id === selectedTenderId ? updatedCached : t)));
+    }
+    // requirements_extracted means the backend actually re-parsed fields from
+    // this PDF and the cached requirements list was rebuilt from them —
+    // pull the fresh list into view instead of the stale pre-upload one.
+    if (result.requirement && selectedTenderId === selectedTenderIdRef.current) {
+      tenderService.getRequirements(selectedTenderId).then(setCurrentRequirements);
+    }
     return result;
   };
 
@@ -161,9 +186,13 @@ function AppContent() {
   // just-created tender rather than whatever tender is currently selected.
   const handleExtractTenderDocumentFor = async (tenderId: string, file: File) => {
     const result = await tenderService.extractTenderDocument(tenderId, file);
-    setTenders((prev) =>
-      prev.map((t) => (t.id === tenderId ? { ...t, extractedDate: result.extracted_date } : t))
-    );
+    const updatedCached = tenderService.getTenderById(tenderId);
+    if (updatedCached) {
+      setTenders((prev) => prev.map((t) => (t.id === tenderId ? updatedCached : t)));
+    }
+    if (result.requirement && tenderId === selectedTenderIdRef.current) {
+      tenderService.getRequirements(tenderId).then(setCurrentRequirements);
+    }
     return result;
   };
 
