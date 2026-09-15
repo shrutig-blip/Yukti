@@ -241,3 +241,70 @@ export interface CollusionSignalsResult {
   edges: CollusionEdge[];
   flaggedClusters: CollusionCluster[];
 }
+
+// --- Continuous Compliance Monitoring (GET/POST /monitoring/*) ---
+// Bid-time verification (/verify/{bidderId}) checks a bidder once. This is
+// the post-award side: bidders currently under an active/awarded contract
+// (latest officer decision QUALIFIED) get periodically re-checked, and a
+// lapse is raised the moment a previously-passing statutory check starts
+// failing (GST filing lapses, gets blacklisted mid-contract, etc).
+
+export interface MonitoredBidder {
+  bidderId: string;
+  companyName: string;
+  qualifiedSince: string;
+}
+
+export interface ComplianceCheckResult {
+  check: string;
+  passed: boolean;
+  status?: string;
+  filingStatus?: string;
+  detail?: string;
+  [key: string]: unknown;
+}
+
+export interface ComplianceLapse {
+  id: string;
+  bidderId: string;
+  timestamp: string;
+  checkType: string;
+  previousStatus: string;
+  currentStatus: string;
+  detail: string;
+  snapshotId: string;
+  acknowledged: boolean;
+  acknowledgedBy: string | null;
+  acknowledgedAt: string | null;
+}
+
+export interface ComplianceSnapshot {
+  id: string;
+  bidderId: string;
+  timestamp: string;
+  trigger: 'scheduled' | 'manual';
+  overallEligible: boolean;
+  checks: ComplianceCheckResult[];
+}
+
+// Deliberately NOT `extends ComplianceSnapshot` — the backend's
+// recheck_bidder()/run_sweep() response is a different shape from a stored
+// snapshot row (no `id`/`trigger`, and it's keyed `snapshot_id` not `id`).
+// Keeping this separate avoids silently mapping fields that don't exist.
+export interface RecheckResult {
+  bidderId: string;
+  snapshotId: string;
+  timestamp: string;
+  overallEligible: boolean;
+  checks: ComplianceCheckResult[];
+  lapsesDetected: ComplianceLapse[];
+  isFirstCheck: boolean;
+}
+
+export interface SweepResult {
+  runAt: string;
+  trigger: 'scheduled' | 'manual';
+  biddersChecked: number;
+  lapsesDetected: number;
+  results: RecheckResult[];
+}
