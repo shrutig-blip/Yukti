@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   FileSpreadsheet,
@@ -20,12 +20,10 @@ import {
   X,
   LogOut,
    Network,
-  RadioTower,
 } from 'lucide-react';
 import { useCurrentOfficer } from '../../context/OfficerContext';
 import { Tender, Bidder } from '../../types';
 import { getComplianceAlerts } from '../../utils/complianceAlerts';
-import { monitoringService } from '../../services/monitoringService';
 
 export type NavigationTab =
   | 'dashboard'
@@ -36,7 +34,6 @@ export type NavigationTab =
   | 'compliance-analysis'
   | 'bidder-comparison'
   | 'collusion-signals'
-  | 'continuous-compliance'
   | 'audit-trail'
   | 'reports'
   | 'decision-history';
@@ -70,34 +67,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isTenderDropdownOpen, setIsTenderDropdownOpen] = useState(false);
-  const [pendingLapseCount, setPendingLapseCount] = useState(0);
-
-  // Continuous compliance runs post-award, independently of whichever
-  // tender/bidder happens to be selected right now, so this nav badge
-  // fetches its own count rather than threading lapse state through
-  // App.tsx. A light poll (not a websocket — there isn't one in this app)
-  // keeps the badge roughly current if a sweep runs in the background
-  // while the officer is on another tab.
-  useEffect(() => {
-    let cancelled = false;
-    const fetchPending = () => {
-      monitoringService
-        .getLapses({ acknowledged: false })
-        .then((lapses) => {
-          if (!cancelled) setPendingLapseCount(lapses.length);
-        })
-        .catch(() => {
-          // Continuous compliance is an additive feature — a failed poll
-          // (e.g. backend not yet updated) shouldn't break the rest of nav.
-        });
-    };
-    fetchPending();
-    const interval = setInterval(fetchPending, 60000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
 
   const filteredBidders = searchQuery.trim()
     ? bidders.filter(
@@ -167,13 +136,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       icon: Network,
       badge: undefined,
       highlight: true,
-    },
-    {
-      id: 'continuous-compliance' as NavigationTab,
-      label: 'Continuous Compliance',
-      icon: RadioTower,
-      badge: pendingLapseCount > 0 ? `${pendingLapseCount} Lapse${pendingLapseCount === 1 ? '' : 's'}` : undefined,
-      highlight: pendingLapseCount > 0,
     },
     {
       id: 'audit-trail' as NavigationTab,

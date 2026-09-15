@@ -11,7 +11,6 @@ import { CollusionSignalsView } from './components/tenders/collusionSignalsView'
 import { ComplianceAnalysisView } from './components/compliance/ComplianceAnalysisView';
 import { ComplianceReportView } from './components/reports/ComplianceReportView';
 import { AuditTrailView } from './components/audit/AuditTrailView';
-import { ComplianceMonitoringView } from './components/monitoring/ComplianceMonitoringView';
 import { DecisionHistoryView } from './components/decision/DecisionHistoryView';
 import { LoginView } from './components/auth/LoginView';
 import { OfficerProvider, useOfficerContext } from './context/OfficerContext';
@@ -350,10 +349,6 @@ function AppContent() {
             requirements={currentRequirements}
             onBack={() => setActiveTab('bidder-profile')}
           />
-        )}
-
-        {activeTab === 'continuous-compliance' && (
-          <ComplianceMonitoringView onSelectBidder={handleSelectBidder} />
         )}
 
         {activeTab === 'audit-trail' && (
