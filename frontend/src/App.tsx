@@ -134,10 +134,11 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCreateTender = (newTenderData: any) => {
-    const created = tenderService.createTender(newTenderData);
+  const handleCreateTender = async (newTenderData: any): Promise<Tender> => {
+    const created = await tenderService.createTender(newTenderData);
     setTenders((prev) => [created, ...prev]);
     setSelectedTenderId(created.id);
+    return created;
   };
 
   const handleUpdateRequirement = (id: string, updates: Partial<TenderRequirement>) => {
@@ -151,6 +152,17 @@ function AppContent() {
     const result = await tenderService.extractTenderDocument(selectedTenderId, file);
     setTenders((prev) =>
       prev.map((t) => (t.id === selectedTenderId ? { ...t, extractedDate: result.extracted_date } : t))
+    );
+    return result;
+  };
+
+  // Same as above but for an explicit tenderId, used by TendersView's
+  // "Upload Tender Document" modal, which may be extracting for a
+  // just-created tender rather than whatever tender is currently selected.
+  const handleExtractTenderDocumentFor = async (tenderId: string, file: File) => {
+    const result = await tenderService.extractTenderDocument(tenderId, file);
+    setTenders((prev) =>
+      prev.map((t) => (t.id === tenderId ? { ...t, extractedDate: result.extracted_date } : t))
     );
     return result;
   };
@@ -238,6 +250,7 @@ function AppContent() {
             onSelectTender={handleSelectTender}
             onOpenExtraction={handleOpenExtraction}
             onCreateTender={handleCreateTender}
+            onExtractDocumentFor={handleExtractTenderDocumentFor}
           />
         )}
 

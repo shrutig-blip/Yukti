@@ -308,7 +308,7 @@ def get_criteria_by_tender(tender_id: str):
     rows = tender_criteria_df[tender_criteria_df["tender_id"] == tender_id]
     if rows.empty:
         return None
-    return rows.iloc[0].to_dict()
+    return _clean_nan(rows.iloc[0].to_dict())
 
 
 # ---------------------------------------------------------------------------
@@ -558,11 +558,11 @@ def get_bidders_by_tender(tender_id: str):
         return None
     bidder_ids = rows["bidder_id"].tolist()
     matched = bidders_df[bidders_df["bidder_id"].isin(bidder_ids)]
-    return matched.to_dict(orient="records")
+    return [_clean_nan(r) for r in matched.to_dict(orient="records")]
 
 
 def list_tenders():
-    return tender_criteria_df.to_dict(orient="records")
+    return [_clean_nan(r) for r in tender_criteria_df.to_dict(orient="records")]
 
 
 def list_bidders():
@@ -575,7 +575,7 @@ def list_bids():
     tender_id here — that many-to-many relationship is real; it's on the
     frontend side (see bidderService.ts) that a single-tender view gets
     picked from it, since the current UI model is one-tender-per-bidder."""
-    return tender_bids_df.to_dict(orient="records")
+    return [_clean_nan(r) for r in tender_bids_df.to_dict(orient="records")]
 
 def verify_bidder_credentials(bidder_id: str):
     bidder = get_bidder_by_id(bidder_id)
@@ -1358,6 +1358,7 @@ def get_officer_decision(bidder_id: str):
 _TENDER_FIELDS = [
     "tender_title", "category_allowed", "min_turnover_cr",
     "min_local_content_percent", "msme_only", "startup_relaxation",
+    "department", "deadline", "estimated_value_cr",
 ]
 
 
@@ -1385,13 +1386,32 @@ def create_tender(tender_data: dict):
     if tender_id in tender_criteria_df["tender_id"].tolist():
         return None
 
-    row = {"tender_id": tender_id}
+    row = {"tender_id": tender_id, "extracted_date": None, "extracted_filename": None}
     for field in _TENDER_FIELDS:
         row[field] = tender_data.get(field)
 
     tender_criteria_df = pd.concat([tender_criteria_df, pd.DataFrame([row])], ignore_index=True)
     _persist_tender_criteria()
     return row
+
+
+def extract_tender_document(tender_id: str, filename: str, raw_text: str):
+    """Persist the real result of a NIT PDF upload for an existing tender:
+    the timestamp of a successful text extraction and the filename that
+    produced it. Does NOT invent or backfill a date — only called after
+    extract_text_from_pdf() has actually run in main.py's endpoint. Returns
+    the updated row, or None if tender_id doesn't exist."""
+    global tender_criteria_df
+
+    mask = tender_criteria_df["tender_id"] == tender_id
+    if not mask.any():
+        return None
+
+    extracted_at = datetime.now().strftime("%d %b %Y, %H:%M IST")
+    tender_criteria_df.loc[mask, "extracted_date"] = extracted_at
+    tender_criteria_df.loc[mask, "extracted_filename"] = filename
+    _persist_tender_criteria()
+    return _clean_nan(tender_criteria_df.loc[mask].iloc[0].to_dict())
 
 
 def update_tender_requirement(tender_id: str, updates: dict):
@@ -1409,7 +1429,7 @@ def update_tender_requirement(tender_id: str, updates: dict):
             tender_criteria_df.loc[mask, field] = updates[field]
 
     _persist_tender_criteria()
-    return tender_criteria_df.loc[mask].iloc[0].to_dict()
+    return _clean_nan(tender_criteria_df.loc[mask].iloc[0].to_dict())
 
 
 # ---------------------------------------------------------------------------

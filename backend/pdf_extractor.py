@@ -280,29 +280,40 @@ def extract_certificate_fields(text: str) -> dict:
     return {"document_type": "unknown"}
 
 def extract_nit_requirements(text: str) -> dict:
-    # regex/pattern matching se nikaalo: min turnover %, local content %,
-    # MSME-only clause, category allowed, submission deadline, etc.
-    # extract_gst_certificate_fields() jaisa pattern follow karo
-
     fields = _apply_patterns(text, {
         "tender_title": r"(?:Tender\s*Title|Name\s*of\s*Work|Subject)\s*[:\-]?\s*(.+)",
         "tender_id": r"(?:Tender\s*(?:Reference\s*)?(?:No\.?|Number|ID))\s*[:\-]?\s*(\S+)",
         "min_turnover_cr": r"(?:Minimum\s*)?(?:Annual\s*)?Turnover\s*[:\-]?\s*(?:Rs\.?|₹)?\s*([\d.]+)\s*(?:Cr|Crore|Lakh)?",
         "min_local_content_percent": r"Local\s*Content\s*[:\-]?\s*([\d.]+)\s*%",
-        "category_allowed": r"(?:Category|Eligible\s*Category)\s*[:\-]?\s*(.+)",
+        "category_allowed": r"(?:Category|Eligible\s*Category)\s*(?:Allowed)?\s*[:\-]\s*(.+)",
         "submission_deadline": r"(?:Submission|Bid)\s*Deadline\s*[:\-]?\s*([\d\-/:\s]+)",
         "estimated_value_cr": r"Estimated\s*(?:Tender\s*)?Value\s*[:\-]?\s*(?:Rs\.?|₹)?\s*([\d.]+)\s*(?:Cr|Crore)?",
     })
 
-    # MSME/startup relaxation clauses are usually a plain statement in the
-    # text ("Tender restricted to MSME bidders only"), not a labeled value —
-    # so detect them by presence of key phrases, same as a boolean flag.
-    fields["msme_only"] = bool(
-        re.search(r"MSME\s*only|restricted\s*to\s*MSME", text, re.IGNORECASE)
-    )
-    fields["startup_relaxation"] = bool(
-        re.search(r"startup\s*relaxation|DPIIT\s*recognized\s*startup", text, re.IGNORECASE)
-    )
+    def _sentence_around(match):
+        """Full sentence containing the match (nearest '.' before/after) —
+        catches negation whether it comes before the phrase ("not restricted
+        to MSME") or after it ("Startup relaxation is not applicable")."""
+        start = text.rfind(".", 0, match.start()) + 1
+        end_dot = text.find(".", match.end())
+        end = end_dot if end_dot != -1 else len(text)
+        return text[start:end]
+
+    _msme_hit = re.search(r"MSME\s*only|restricted\s*to\s*MSME", text, re.IGNORECASE)
+    if _msme_hit:
+        sentence = _sentence_around(_msme_hit)
+        negated = bool(re.search(r"\b(not|no|non)\b", sentence, re.IGNORECASE))
+        fields["msme_only"] = not negated
+    else:
+        fields["msme_only"] = False
+
+    _startup_hit = re.search(r"startup\s*relaxation|DPIIT\s*recognized\s*startup", text, re.IGNORECASE)
+    if _startup_hit:
+        sentence = _sentence_around(_startup_hit)
+        negated = bool(re.search(r"\b(not|no|non)\b", sentence, re.IGNORECASE))
+        fields["startup_relaxation"] = not negated
+    else:
+        fields["startup_relaxation"] = False
 
     return fields
 
